@@ -92,7 +92,3 @@ const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
 bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
 baz.print();
-
-// function test<T extends Array<Object>>(...cons: T): { [K in keyof T]: T[K] & { id: number } } {
-//     return cons.map(c => { return { ...c, "id": 1 } });
-// }
