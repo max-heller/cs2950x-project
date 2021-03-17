@@ -13,12 +13,11 @@ class BasicTable<Cols extends Object> {
         return new Row(this.columns, this.rows[row]);
     }
 
-    clone() {
-        const data = [];
-        for (const row of this.rows) {
-            data.push({ ...row });
+    print() {
+        console.log(this.columns.join(", "));
+        for (const row of this) {
+            new Row(this.columns, row).print();
         }
-        return new BasicTable(this.columns, data);
     }
 }
 
@@ -30,18 +29,22 @@ class Row<Cols extends Object> {
         this.columns = columns;
         this.values = values;
     }
+
+    print() {
+        console.log(this.columns.map(col => this.values[col]).join(", "));
+    }
 }
 
-class Table<IndRow, IndVars extends keyof IndRow> {
+class Table<IndRow> {
     independentTable: BasicTable<IndRow>;
     dependentTables: BasicTable<any>[];
 
     static new<Row>(cols: (keyof Row)[], data: Row[]) {
-        const rows = [];
+        const rows: (Row & { id: number })[] = [];
         for (const [index, row] of data.entries()) {
             rows.push({ "id": index, ...row });
         }
-        return new Table(new BasicTable<Row & { id: number }>(["id", ...cols], rows), []);
+        return new Table(new BasicTable(["id", ...cols], rows), []);
     }
 
     constructor(independentTable: BasicTable<IndRow>, dependentTables: BasicTable<Object>[]) {
@@ -49,58 +52,41 @@ class Table<IndRow, IndVars extends keyof IndRow> {
         this.dependentTables = dependentTables;
     }
 
-    pivotLonger<Cols extends Exclude<IndVars, "id">>(cols: Cols[], namesTo: string, valuesTo: string): Table<Omit<IndRow, Cols>, Exclude<IndVars, Cols>> {
-        const newInd = this.independentTable.clone();
-        for (const row of newInd) {
-            for (const col of cols) {
-                delete row[col];
-            }
-        }
+    pivotLonger<Cols extends Exclude<keyof IndRow, "id">>(cols: Cols[], namesTo: string, valuesTo: string): Table<Omit<IndRow, Cols>> {
+        const newIndCols = this.independentTable.columns.filter(col => {
+            return !cols.find(exclude => exclude === col);
+        }) as Exclude<keyof IndRow, Cols>[];
+        const newIndRows = this.independentTable.rows.map(row => {
+            const newRow: Partial<Omit<IndRow, Cols>> = {};
+            newIndCols.forEach(col => newRow[col] = row[col]);
+            return newRow as Omit<IndRow, Cols>;
+        });
+        const newInd = new BasicTable(newIndCols, newIndRows);
 
-        const dep: Object[] = [];
+        const depRows: Object[] = [];
         for (const row of this.independentTable) {
             for (const col of cols) {
-                const newRow = { "id": row["id"], [namesTo]: col, [valuesTo]: row[col] };
-                dep.push(newRow);
+                depRows.push({ id: row["id"], [namesTo]: col, [valuesTo]: row[col] });
             }
         }
-        const newDep = this.dependentTables.map(table => table.clone());
-        newDep.push(new BasicTable<any>(["id", namesTo, valuesTo], dep));
+        const newDep = new BasicTable<any>(["id", namesTo, valuesTo], depRows);
 
-        return new Table(newInd as unknown as BasicTable<Omit<IndRow, Cols>>, newDep); // oops
+        return new Table(newInd, [...this.dependentTables, newDep]);
     }
 
     print() {
         console.log("Independent table:");
         this.independentTable.print();
-        for ((index, table) of this.this.dependentTables.entries()) {
-
+        for (const [index, table] of this.dependentTables.entries()) {
+            console.log(`Dependent table ${index}:`);
+            table.print();
         }
     }
 }
 
 const foo = Table.new(["x", "y", "A", "B"], [{ "x": 7, "y": 8, "A": 1, "B": 2 }, { "x": 5, "y": 6, "A": 3, "B": 4 }]);
-const bar = foo.pivotLonger(["A", "B"], "foo", "bar");
-// x.print();
-
-// class Table2<Row extends Object> {
-//     columns: (keyof Row)[];
-//     data: Row[];
-
-//     // independentVars: (keyof Row)[], dependentVars: (keyof Row)[][]
-//     constructor(data: Row[]) {
-//         this.columns = Object.keys(data[0]) as (keyof Row)[];
-//         this.data = data;
-//     }
-
-//     print() {
-//         console.log("Print table:");
-//         for (const row of this.data) {
-//             console.log(row);
-//         }
-//         console.log("End print table.")
-//     }
-// }
-
-// const y = new Table2([{ "A": 1, "B": 2 }, { "A": 3, "B": 4, "C": 5 }]);
-// y.print();
+foo.print();
+const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
+bar.print();
+const baz = bar.pivotLonger(["y"], "lab", "score");
+baz.print();
