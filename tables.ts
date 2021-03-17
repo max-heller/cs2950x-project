@@ -35,7 +35,7 @@ class Row<Cols extends Object> {
     }
 }
 
-class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> {
+class Table<IndRow, DepTables extends BasicTable<any>[]> {
     independentTable: BasicTable<IndRow>;
     dependentTables: DepTables;
 
@@ -52,16 +52,14 @@ class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> 
         this.dependentTables = dependentTables;
     }
 
-    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Name, valuesTo: Value)
-    // : Table<Omit<IndRow, Cols> & { id: number }, [...DepTables, BasicTable<{ id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] }>]> 
-    {
+    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Name, valuesTo: Value) {
         const newIndCols = this.independentTable.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
         }) as Exclude<keyof IndRow, Cols>[];
         const newIndRows = this.independentTable.rows.map(row => {
             const newRow: Partial<Omit<IndRow, Cols>> = {};
             newIndCols.forEach(col => newRow[col] = row[col]);
-            return newRow as Omit<IndRow, Cols> & { id: number };
+            return newRow as Omit<IndRow, Cols>;
         });
         const newInd = new BasicTable(newIndCols, newIndRows);
 
