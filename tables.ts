@@ -48,25 +48,25 @@ class Table<IndRow, DepTables extends BasicTable<any>[]> {
 
         const rows = [];
         return new Promise((resolve, reject) => {
-            fs.createReadStream(filename)  
-            .pipe(parse())
-            .on('data', (row) => {
-              rows.push(row);
-            })
-            .on('end', () => {
-              const cols = rows[0];
-              const data = [];
-              for (const row of rows.slice(1)) {
-                  const rowObj = {};
-                  for (const i in row) {
-                      rowObj[cols[i]] = row[i];
-                  }
-                  data.push(rowObj);
-              }
-              resolve(Table.new(cols, data));
-            })
-            .on('error', reject)
-          })
+            fs.createReadStream(filename)
+                .pipe(parse())
+                .on('data', (row) => {
+                    rows.push(row);
+                })
+                .on('end', () => {
+                    const cols = rows[0];
+                    const data = [];
+                    for (const row of rows.slice(1)) {
+                        const rowObj = {};
+                        for (const i in row) {
+                            rowObj[cols[i]] = row[i];
+                        }
+                        data.push(rowObj);
+                    }
+                    resolve(Table.new(cols, data));
+                })
+                .on('error', reject)
+        })
     }
 
     constructor(independentTable: BasicTable<IndRow>, ...dependentTables: DepTables) {
