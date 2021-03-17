@@ -14,10 +14,7 @@ class BasicTable<Cols extends Object> {
     }
 
     print() {
-        console.log(this.columns.join(", "));
-        for (const row of this) {
-            new Row(this.columns, row).print();
-        }
+        console.table(this.rows, this.columns.map(col => col as string));
     }
 }
 
@@ -28,10 +25,6 @@ class Row<Cols extends Object> {
     constructor(columns: (keyof Cols)[], values: Cols) {
         this.columns = columns;
         this.values = values;
-    }
-
-    print() {
-        console.log(this.columns.map(col => this.values[col]).join(", "));
     }
 }
 
