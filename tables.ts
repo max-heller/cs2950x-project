@@ -10,8 +10,6 @@ class BasicTable<Cols extends Object> {
         this.rows = rows;
     }
 
-    [Symbol.iterator]() { return this.rows.values() }
-
     get(row: number): Row<Cols> {
         return new Row(this.columns, this.rows[row]);
     }
@@ -87,7 +85,7 @@ class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> 
         const newInd = new BasicTable(newIndCols, newIndRows);
 
         const depRows: ({ id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] })[] = [];
-        for (const row of this.independentTable) {
+        for (const row of this.independentTable.rows) {
             for (const col of cols) {
                 const name = { [namesTo]: col as string } as { [name in Name]: string };
                 const value = { [valuesTo]: row[col] } as { [value in Value]: IndRow[Cols] };
