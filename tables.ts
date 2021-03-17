@@ -82,6 +82,8 @@ class Table<IndRow, DepTables extends BasicTable<any>[]> {
 const foo = Table.new(["x", "y", "A", "B"], [{ "x": 7, "y": 8, "A": 1, "B": 2 }, { "x": 5, "y": 6, "A": 3, "B": 4 }]);
 foo.print();
 const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
+console.log();
 bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
+console.log();
 baz.print();
