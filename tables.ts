@@ -1,4 +1,5 @@
-import { time } from "console";
+import { createReadStream } from 'fs';
+import * as parse from 'csv-parse';
 
 class BasicTable<Cols extends Object> {
     columns: (keyof Cols)[];
@@ -30,7 +31,9 @@ class Row<Cols extends Object> {
     }
 }
 
-class Table<IndRow, DepTables extends BasicTable<any>[]> {
+type Parsers<T> = { [K in keyof T]: (v: any) => T[K] };
+
+class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> {
     independentTable: BasicTable<IndRow>;
     dependentTables: DepTables;
 
@@ -42,26 +45,24 @@ class Table<IndRow, DepTables extends BasicTable<any>[]> {
         return new Table(new BasicTable(["id", ...cols], rows));
     }
 
-    static async fromCsv<Row>(filename: string): Promise<Table<Row, []>> {
-        const fs = require('fs');
-        const parse = require('csv-parse');
-
-        const rows = [];
+    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row & { id: number }, []>> {
+        const rows: any[][] = [];
         return new Promise((resolve, reject) => {
-            fs.createReadStream(filename)
+            createReadStream(filename)
                 .pipe(parse())
-                .on('data', (row) => {
+                .on('data', (row: any) => {
                     rows.push(row);
                 })
                 .on('end', () => {
-                    const cols = rows[0];
-                    const data = [];
+                    const cols = rows[0].map(String) as (keyof Row)[];
+                    const data: Row[] = [];
                     for (const row of rows.slice(1)) {
-                        const rowObj = {};
-                        for (const i in row) {
-                            rowObj[cols[i]] = row[i];
+                        const rowObj: Partial<Row> = {};
+                        for (const [idx, val] of row.entries()) {
+                            const col = cols[idx];
+                            rowObj[col] = parsers[col](val);
                         }
-                        data.push(rowObj);
+                        data.push(rowObj as Row);
                     }
                     resolve(Table.new(cols, data));
                 })
@@ -81,7 +82,7 @@ class Table<IndRow, DepTables extends BasicTable<any>[]> {
         const newIndRows = this.independentTable.rows.map(row => {
             const newRow: Partial<Omit<IndRow, Cols>> = {};
             newIndCols.forEach(col => newRow[col] = row[col]);
-            return newRow as Omit<IndRow, Cols>;
+            return newRow as Omit<IndRow, Cols> & { id: number };
         });
         const newInd = new BasicTable(newIndCols, newIndRows);
 
@@ -117,21 +118,21 @@ const baz = bar.pivotLonger(["y"], "lab", "score");
 console.log();
 baz.print();
 
-type example = {
-    section: number,
-    student: string,
-    test1: number,
-    test2: number,
-    test3: number,
-    test4: number,
-    test5: number,
-    lab1: string,
-    lab2: string,
-    lab3: string,
-    lab4: string,
-    lab5: string
+const parsers = {
+    section: Number,
+    student: String,
+    test1: Number,
+    test2: Number,
+    test3: Number,
+    test4: Number,
+    test5: Number,
+    lab1: String,
+    lab2: String,
+    lab3: String,
+    lab4: String,
+    lab5: String
 };
-Table.fromCsv<example>("tests_and_labs.csv").then((testsAndLabs) => {
+Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
     const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2", "lab3", "lab4", "lab5"], "lab", "score");
     const pivotTest = pivotLab.pivotLonger(["test1", "test2", "test3", "test4", "test5"], "test", "score");
     pivotTest.print();

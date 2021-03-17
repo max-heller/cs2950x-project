@@ -1,8 +1,12 @@
 {
-    "compilerOptions": {
-      "module": "commonjs",
-      "lib": ["ES2016", "DOM"],
-      "target": "ES5",
-      "downlevelIteration": true
-    }
+  "compilerOptions": {
+    "module": "commonjs",
+    "lib": [
+      "ES2016",
+      "DOM"
+    ],
+    "target": "ES5",
+    "downlevelIteration": true,
+    "noImplicitAny": true
+  }
 }
