@@ -35,43 +35,47 @@ class Row<Cols extends Object> {
     }
 }
 
-class Table<IndRow> {
+class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> {
     independentTable: BasicTable<IndRow>;
-    dependentTables: BasicTable<any>[];
+    dependentTables: DepTables;
 
     static new<Row>(cols: (keyof Row)[], data: Row[]) {
         const rows: (Row & { id: number })[] = [];
         for (const [index, row] of data.entries()) {
             rows.push({ "id": index, ...row });
         }
-        return new Table(new BasicTable(["id", ...cols], rows), []);
+        return new Table(new BasicTable(["id", ...cols], rows));
     }
 
-    constructor(independentTable: BasicTable<IndRow>, dependentTables: BasicTable<Object>[]) {
+    constructor(independentTable: BasicTable<IndRow>, ...dependentTables: DepTables) {
         this.independentTable = independentTable;
         this.dependentTables = dependentTables;
     }
 
-    pivotLonger<Cols extends Exclude<keyof IndRow, "id">>(cols: Cols[], namesTo: string, valuesTo: string): Table<Omit<IndRow, Cols>> {
+    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Name, valuesTo: Value)
+    // : Table<Omit<IndRow, Cols> & { id: number }, [...DepTables, BasicTable<{ id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] }>]> 
+    {
         const newIndCols = this.independentTable.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
         }) as Exclude<keyof IndRow, Cols>[];
         const newIndRows = this.independentTable.rows.map(row => {
             const newRow: Partial<Omit<IndRow, Cols>> = {};
             newIndCols.forEach(col => newRow[col] = row[col]);
-            return newRow as Omit<IndRow, Cols>;
+            return newRow as Omit<IndRow, Cols> & { id: number };
         });
         const newInd = new BasicTable(newIndCols, newIndRows);
 
-        const depRows: Object[] = [];
+        const depRows: ({ id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] })[] = [];
         for (const row of this.independentTable) {
             for (const col of cols) {
-                depRows.push({ id: row["id"], [namesTo]: col, [valuesTo]: row[col] });
+                const name = { [namesTo]: col as string } as { [name in Name]: string };
+                const value = { [valuesTo]: row[col] } as { [value in Value]: IndRow[Cols] };
+                depRows.push({ id: row["id"], ...name, ...value });
             }
         }
-        const newDep = new BasicTable<any>(["id", namesTo, valuesTo], depRows);
+        const newDep = new BasicTable(["id", namesTo, valuesTo], depRows);
 
-        return new Table(newInd, [...this.dependentTables, newDep]);
+        return new Table(newInd, ...this.dependentTables, newDep);
     }
 
     print() {
@@ -90,3 +94,7 @@ const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
 bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
 baz.print();
+
+// function test<T extends Array<Object>>(...cons: T): { [K in keyof T]: T[K] & { id: number } } {
+//     return cons.map(c => { return { ...c, "id": 1 } });
+// }
