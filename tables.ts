@@ -1,3 +1,5 @@
+import { time } from "console";
+
 class BasicTable<Cols extends Object> {
     columns: (keyof Cols)[];
     rows: Cols[];
@@ -38,6 +40,33 @@ class Table<IndRow, DepTables extends BasicTable<any>[]> {
             rows.push({ "id": index, ...row });
         }
         return new Table(new BasicTable(["id", ...cols], rows));
+    }
+
+    static async fromCsv<Row>(filename: string): Promise<Table<Row, []>> {
+        const fs = require('fs');
+        const parse = require('csv-parse');
+
+        const rows = [];
+        return new Promise((resolve, reject) => {
+            fs.createReadStream(filename)  
+            .pipe(parse())
+            .on('data', (row) => {
+              rows.push(row);
+            })
+            .on('end', () => {
+              const cols = rows[0];
+              const data = [];
+              for (const row of rows.slice(1)) {
+                  const rowObj = {};
+                  for (const i in row) {
+                      rowObj[cols[i]] = row[i];
+                  }
+                  data.push(rowObj);
+              }
+              resolve(Table.new(cols, data));
+            })
+            .on('error', reject)
+          })
     }
 
     constructor(independentTable: BasicTable<IndRow>, ...dependentTables: DepTables) {
@@ -87,3 +116,23 @@ bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
 console.log();
 baz.print();
+
+type example = {
+    section: number,
+    student: string,
+    test1: number,
+    test2: number,
+    test3: number,
+    test4: number,
+    test5: number,
+    lab1: string,
+    lab2: string,
+    lab3: string,
+    lab4: string,
+    lab5: string
+};
+Table.fromCsv<example>("tests_and_labs.csv").then((testsAndLabs) => {
+    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2", "lab3", "lab4", "lab5"], "lab", "score");
+    const pivotTest = pivotLab.pivotLonger(["test1", "test2", "test3", "test4", "test5"], "test", "score");
+    pivotTest.print();
+});
