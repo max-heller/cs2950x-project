@@ -41,9 +41,9 @@ class Row<Cols extends Object> {
     }
 }
 
-type Parsers<T> = { [K in keyof T]: (v: any) => T[K] };
+type Parsers<T> = { [K in keyof T]: (_: any) => T[K] };
 
-class Table<IndRow extends { id: number }, DepTables extends { [x: string]: BasicTable<{ id: number }> }> {
+class Table<IndRow extends { id: number }, DepTables extends { [_: string]: BasicTable<{ id: number }> }> {
     independentTable: BasicTable<IndRow>;
     dependentTables: DepTables;
 
