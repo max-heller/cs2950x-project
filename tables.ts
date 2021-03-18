@@ -14,6 +14,18 @@ class BasicTable<Cols extends Object> {
         return new Row(this.columns, this.rows[row]);
     }
 
+    filter(by: { [K in keyof Cols]?: Cols[K] }) {
+        const rows = this.rows.filter(row => {
+            for (const k in by) {
+                if (row[k] !== by[k]) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        return new BasicTable(this.columns, rows);
+    }
+
     print() {
         console.table(this.rows, this.columns.map(col => col as string));
     }
@@ -31,7 +43,7 @@ class Row<Cols extends Object> {
 
 type Parsers<T> = { [K in keyof T]: (v: any) => T[K] };
 
-class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> {
+class Table<IndRow extends { id: number }, DepTables extends { [x: string]: BasicTable<{ id: number }> }> {
     independentTable: BasicTable<IndRow>;
     dependentTables: DepTables;
 
@@ -40,10 +52,10 @@ class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> 
         for (const [index, row] of data.entries()) {
             rows.push({ "id": index, ...row });
         }
-        return new Table(new BasicTable(["id", ...cols], rows));
+        return new Table(new BasicTable(["id", ...cols], rows), {});
     }
 
-    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row & { id: number }, []>> {
+    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row & { id: number }, {}>> {
         const rows: any[][] = [];
         return new Promise((resolve, reject) => {
             createReadStream(filename)
@@ -68,9 +80,23 @@ class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> 
         })
     }
 
-    constructor(independentTable: BasicTable<IndRow>, ...dependentTables: DepTables) {
+    constructor(independentTable: BasicTable<IndRow>, dependentTables: DepTables) {
         this.independentTable = independentTable;
         this.dependentTables = dependentTables;
+    }
+
+    query<K extends keyof DepTables>(key: K, where: Omit<IndRow, "id">): DepTables[K] {
+        const table: DepTables[K] = this.dependentTables[key];
+        const id = this.independentTable.rows.find(row => {
+            for (const key in where) {
+                const x = key as keyof Omit<IndRow, "id">;
+                if (row[x] !== where[x]) {
+                    return false;
+                }
+            }
+            return true;
+        }).id;
+        return table.filter({ id: id }) as DepTables[K];
     }
 
     pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Name, valuesTo: Value) {
@@ -94,27 +120,28 @@ class Table<IndRow extends { id: number }, DepTables extends BasicTable<any>[]> 
         }
         const newDep = new BasicTable(["id", namesTo, valuesTo], depRows);
 
-        return new Table(newInd, ...this.dependentTables, newDep);
+        const newDeps = { [namesTo]: newDep } as { [name in Name]: typeof newDep };
+        return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
     print() {
         console.log("Independent table:");
         this.independentTable.print();
-        for (const [index, table] of this.dependentTables.entries()) {
-            console.log(`Dependent table ${index}:`);
-            table.print();
+        for (const key in this.dependentTables) {
+            console.log(`Dependent table '${key}':`);
+            this.dependentTables[key].print();
         }
     }
 }
 
 const foo = Table.new(["x", "y", "A", "B"], [{ "x": 7, "y": 8, "A": 1, "B": 2 }, { "x": 5, "y": 6, "A": 3, "B": 4 }]);
-foo.print();
+// foo.print();
 const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
 console.log();
-bar.print();
+// bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
 console.log();
-baz.print();
+// baz.print();
 
 const parsers = {
     section: Number,
@@ -134,4 +161,6 @@ Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
     const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2", "lab3", "lab4", "lab5"], "lab", "score");
     const pivotTest = pivotLab.pivotLonger(["test1", "test2", "test3", "test4", "test5"], "test", "score");
     pivotTest.print();
+    const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
+    thomasLabGrades.print();
 });
