@@ -99,7 +99,7 @@ class Table<IndRow extends { id: number }, DepTables extends { [_: string]: Basi
         return table.filter({ id: id }) as DepTables[K];
     }
 
-    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Name, valuesTo: Value) {
+    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
         const newIndCols = this.independentTable.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
         }) as Exclude<keyof IndRow, Cols>[];
@@ -135,13 +135,13 @@ class Table<IndRow extends { id: number }, DepTables extends { [_: string]: Basi
 }
 
 const foo = Table.new(["x", "y", "A", "B"], [{ "x": 7, "y": 8, "A": 1, "B": 2 }, { "x": 5, "y": 6, "A": 3, "B": 4 }]);
-// foo.print();
+foo.print();
 const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
 console.log();
-// bar.print();
+bar.print();
 const baz = bar.pivotLonger(["y"], "lab", "score");
 console.log();
-// baz.print();
+baz.print();
 
 const parsers = {
     section: Number,
