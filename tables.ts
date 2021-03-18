@@ -1,6 +1,42 @@
 import { createReadStream } from 'fs';
 import * as parse from 'csv-parse';
 
+class IndependentTable<Cols extends Object> {
+    columns: (keyof Cols)[];
+    rows: Map<number, Cols>;
+
+    constructor(cols: (keyof Cols)[], rows: Map<number, Cols>) {
+        this.columns = cols;
+        this.rows = rows;
+    }
+
+    get(id: number): Row<Cols & { id: number }> {
+        return new Row(["id", ...this.columns], { ...this.rows.get(id), "id": id });
+    }
+
+    filter(by: { [K in keyof Cols]?: Cols[K] }) {
+        const rows = new Map();
+        for (const [id, row] of this.rows) {
+            let matches = true;
+            for (const k in by) {
+                if (row[k] !== by[k]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                rows.set(id, row);
+            }
+        }
+        return new IndependentTable(this.columns, rows);
+    }
+
+    print() {
+        console.table([...this.rows.values()], this.columns.map(col => col as string));
+    }
+}
+
+
 class BasicTable<Cols extends Object> {
     columns: (keyof Cols)[];
     rows: Cols[];
@@ -43,19 +79,19 @@ class Row<Cols extends Object> {
 
 type Parsers<T> = { [K in keyof T]: (_: any) => T[K] };
 
-class Table<IndRow extends { id: number }, DepTables extends { [_: string]: BasicTable<{ id: number }> }> {
-    independentTable: BasicTable<IndRow>;
+class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number }> }> {
+    independentTable: IndependentTable<IndRow>;
     dependentTables: DepTables;
 
     static new<Row>(cols: (keyof Row)[], data: Row[]) {
-        const rows: (Row & { id: number })[] = [];
+        const rows = new Map();
         for (const [index, row] of data.entries()) {
-            rows.push({ "id": index, ...row });
+            rows.set(index, row);
         }
-        return new Table(new BasicTable(["id", ...cols], rows), {});
+        return new Table(new IndependentTable(cols, rows), {});
     }
 
-    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row & { id: number }, {}>> {
+    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row, {}>> {
         const rows: any[][] = [];
         return new Promise((resolve, reject) => {
             createReadStream(filename)
@@ -80,45 +116,42 @@ class Table<IndRow extends { id: number }, DepTables extends { [_: string]: Basi
         })
     }
 
-    constructor(independentTable: BasicTable<IndRow>, dependentTables: DepTables) {
+    constructor(independentTable: IndependentTable<IndRow>, dependentTables: DepTables) {
         this.independentTable = independentTable;
         this.dependentTables = dependentTables;
     }
 
-    query<K extends keyof DepTables>(key: K, where: Omit<IndRow, "id">): DepTables[K] {
+    query<K extends keyof DepTables>(key: K, where: IndRow): DepTables[K] {
         const table: DepTables[K] = this.dependentTables[key];
-        const id = this.independentTable.rows.find(row => {
-            for (const key in where) {
-                const x = key as keyof Omit<IndRow, "id">;
-                if (row[x] !== where[x]) {
-                    return false;
-                }
-            }
-            return true;
-        }).id;
-        return table.filter({ id: id }) as DepTables[K];
+        const id = this.independentTable.filter(where).rows.keys().next();
+        if (id.done === false) {
+            return table.filter({ ind_id: id.value }) as DepTables[K];
+        } else {
+            return new BasicTable(table.columns, []) as DepTables[K];
+        }
     }
 
-    pivotLonger<Cols extends Exclude<keyof IndRow, "id">, Name extends string, Value extends string>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
+    pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends string>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
         const newIndCols = this.independentTable.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
         }) as Exclude<keyof IndRow, Cols>[];
-        const newIndRows = this.independentTable.rows.map(row => {
+        const newIndRows: Map<number, Omit<IndRow, Cols>> = new Map();
+        for (const [id, row] of this.independentTable.rows) {
             const newRow: Partial<Omit<IndRow, Cols>> = {};
             newIndCols.forEach(col => newRow[col] = row[col]);
-            return newRow as Omit<IndRow, Cols> & { id: number };
-        });
-        const newInd = new BasicTable(newIndCols, newIndRows);
+            newIndRows.set(id, newRow as Omit<IndRow, Cols>);
+        }
+        const newInd = new IndependentTable(newIndCols, newIndRows);
 
-        const depRows: ({ id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] })[] = [];
-        for (const row of this.independentTable.rows) {
+        const depRows: ({ ind_id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] })[] = [];
+        for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
                 const name = { [namesTo]: col as string } as { [name in Name]: string };
                 const value = { [valuesTo]: row[col] } as { [value in Value]: IndRow[Cols] };
-                depRows.push({ id: row["id"], ...name, ...value });
+                depRows.push({ ind_id: id, ...name, ...value });
             }
         }
-        const newDep = new BasicTable(["id", namesTo, valuesTo], depRows);
+        const newDep = new BasicTable(["ind_id", namesTo, valuesTo], depRows);
 
         const newDeps = { [namesTo]: newDep } as { [name in Name]: typeof newDep };
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
