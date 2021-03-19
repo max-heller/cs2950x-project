@@ -164,14 +164,14 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
-                const name = { [namesTo]: col as string } as { [_ in Name]: string };
-                const value = { [valuesTo]: row[col] } as { [_ in Value]: IndRow[Cols] };
+                const name = { [namesTo]: col as string } as Record<Name, string>;
+                const value = { [valuesTo]: row[col] } as Record<Value, IndRow[Cols]>;
                 depRows.push({ ind_id: id, ...name, ...value });
             }
         }
         const newDep = new BasicTable(["ind_id", namesTo, valuesTo], depRows);
 
-        const newDeps = { [header]: newDep } as { [_ in Header]: typeof newDep };
+        const newDeps = { [header]: newDep } as Record<Header, typeof newDep>;
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
@@ -179,18 +179,18 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         const newInd = this.independentTable.removeCols([variable]);
         const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
-            const value = { [variable]: row[variable] } as { [_ in Variable]: IndRow[NoUnion<Variable>] };
+            const value = { [variable]: row[variable] } as Record<Variable, IndRow[NoUnion<Variable>]>;
             depRows.push({ ind_id: id, ...value });
         }
         const newDep = new BasicTable(["ind_id", variable], depRows);
 
-        const newDeps = { [variable]: newDep } as { [_ in Variable]: typeof newDep };
+        const newDeps = { [variable]: newDep } as Record<Variable, typeof newDep>;
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
     pivotWider<Name extends keyof Omit<IndRow, keyof { [K in keyof IndRow as (IndRow[K] extends string ? never : K)]: IndRow[K] }>, DepVars extends { [K in keyof DepTables]: keyof Omit<Schema<DepTables[K]>, "ind_id"> }>(
         namesFrom: Name, dependentVars: DepVars
-    ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
+    ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & Record<IndRow[Name] & string, Schema<DepTables[K]>[DepVars[K]]>> }> {
         const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
         const indRows = [...newInd.rows.entries()];
@@ -219,8 +219,8 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             }
         }
 
-        function pivotWider<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
-            type NewCols = { [_ in NewVars]: T[DepVar] };
+        function pivotWider<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & Record<NewVars, T[DepVar]>> {
+            type NewCols = Record<NewVars, T[DepVar]>;
             type Row = Omit<T, DepVar> & NewCols;
             const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
 
@@ -256,7 +256,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             return new BasicTable([...cols, ...distinctVals], rows);
         }
 
-        type NewDepTables = { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in NewVars]: Schema<DepTables[K]>[DepVars[K]] }> };
+        type NewDepTables = { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & Record<NewVars, Schema<DepTables[K]>[DepVars[K]]>> };
         const newDepTables: Partial<NewDepTables> = {};
         for (const header in this.dependentTables) {
             newDepTables[header] = pivotWider(this.dependentTables[header], dependentVars[header]);
