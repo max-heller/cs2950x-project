@@ -14,7 +14,7 @@ class IndependentTable<Cols extends Object> {
         return new Row(["id", ...this.columns], { ...this.rows.get(id), "id": id });
     }
 
-    filter(by: { [K in keyof Cols]?: Cols[K] }) {
+    filter(by: Partial<Cols>) {
         const rows = new Map();
         for (const [id, row] of this.rows) {
             let matches = true;
@@ -67,7 +67,7 @@ class BasicTable<Cols extends Object> {
         return new Row(this.columns, this.rows[row]);
     }
 
-    filter(by: { [K in keyof Cols]?: Cols[K] }) {
+    filter(by: Partial<Cols>) {
         const rows = this.rows.filter(row => {
             for (const k in by) {
                 if (row[k] !== by[k]) {
@@ -188,8 +188,8 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-    pivotWider<Name extends keyof IndRow, DepVars extends { [K in keyof DepTables]: Exclude<keyof Schema<DepTables[K]>, "ind_id"> }>(
-        namesFrom: Name & keyof { [K in keyof IndRow as IndRow[K] extends string ? K : never]: IndRow[K] }, dependentVars: DepVars
+    pivotWider<Name extends keyof Omit<IndRow, keyof { [K in keyof IndRow as (IndRow[K] extends string ? never : K)]: IndRow[K] }>, DepVars extends { [K in keyof DepTables]: keyof Omit<Schema<DepTables[K]>, "ind_id"> }>(
+        namesFrom: Name, dependentVars: DepVars
     ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
         const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
