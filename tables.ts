@@ -188,8 +188,9 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-    pivotWider<Name extends keyof IndRow, DepVars extends { [K in keyof DepTables]: Exclude<keyof Schema<DepTables[K]>, "ind_id"> }>(namesFrom: Name, dependentVars: DepVars)
-        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
+    pivotWider<Name extends keyof IndRow, DepVars extends { [K in keyof DepTables]: Exclude<keyof Schema<DepTables[K]>, "ind_id"> }>(
+        namesFrom: Name & keyof { [K in keyof IndRow as IndRow[K] extends string ? K : never]: IndRow[K] }, dependentVars: DepVars
+    ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
         const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
         const indRows = [...newInd.rows.entries()];
