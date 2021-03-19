@@ -131,7 +131,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         }
     }
 
-    pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends string>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
+    pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
         const newIndCols = this.independentTable.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
         }) as Exclude<keyof IndRow, Cols>[];
@@ -143,18 +143,45 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         }
         const newInd = new IndependentTable(newIndCols, newIndRows);
 
-        const depRows: ({ ind_id: number } & { [name in Name]: string } & { [value in Value]: IndRow[Cols] })[] = [];
+        const depRows: ({ ind_id: number } & { [_ in Name]: string } & { [_ in Value]: IndRow[Cols] })[] = [];
         for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
-                const name = { [namesTo]: col as string } as { [name in Name]: string };
-                const value = { [valuesTo]: row[col] } as { [value in Value]: IndRow[Cols] };
+                const name = { [namesTo]: col as string } as { [_ in Name]: string };
+                const value = { [valuesTo]: row[col] } as { [_ in Value]: IndRow[Cols] };
                 depRows.push({ ind_id: id, ...name, ...value });
             }
         }
         const newDep = new BasicTable(["ind_id", namesTo, valuesTo], depRows);
 
-        const newDeps = { [namesTo]: newDep } as { [name in Name]: typeof newDep };
+        const newDeps = { [namesTo]: newDep } as { [_ in Name]: typeof newDep };
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
+    }
+
+    setDependentVar<Variable extends keyof IndRow>(variable: Variable) {
+        const newIndCols = this.independentTable.columns.filter(col => col !== variable) as Exclude<keyof IndRow, Variable>[];
+        const newIndRows: Map<number, Omit<IndRow, Variable>> = new Map();
+        for (const [id, row] of this.independentTable.rows) {
+            const newRow: Partial<Omit<IndRow, Variable>> = {};
+            newIndCols.forEach(col => newRow[col] = row[col]);
+            newIndRows.set(id, newRow as Omit<IndRow, Variable>);
+        }
+        const newInd = new IndependentTable(newIndCols, newIndRows);
+
+        const depRows: ({ ind_id: number } & { [_ in Variable]: IndRow[Variable] })[] = [];
+        for (const [id, row] of this.independentTable.rows) {
+            const value = { [variable]: row[variable] } as { [_ in Variable]: IndRow[Variable] };
+            depRows.push({ ind_id: id, ...value });
+        }
+        const newDep = new BasicTable(["ind_id", variable], depRows);
+
+        const newDeps = { [variable]: newDep } as { [_ in Variable]: typeof newDep };
+        return new Table(newInd, { ...this.dependentTables, ...newDeps });
+    }
+
+
+    pivotWider<Name extends keyof IndRow>(namesFrom: Name)
+        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<any> }> {
+        return undefined;
     }
 
     print() {
@@ -167,14 +194,18 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
     }
 }
 
-const foo = Table.new(["x", "y", "A", "B"], [{ "x": 7, "y": 8, "A": 1, "B": 2 }, { "x": 5, "y": 6, "A": 3, "B": 4 }]);
+const foo = Table.new(["x", "A", "B"], [{ "x": 7, "A": 1, "B": 2 } as const, { "x": 5, "A": 3, "B": 4 } as const]);
 foo.print();
 const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
 console.log();
 bar.print();
-const baz = bar.pivotLonger(["y"], "lab", "score");
+const foobar = bar.pivotWider("x");
+// const baz = bar.pivotLonger(["y"], "lab", "score");
 console.log();
-baz.print();
+// baz.print();
+const a = "hello";
+const b = "world";
+const c = `${a} ${b}` as const;
 
 const parsers = {
     section: Number,
