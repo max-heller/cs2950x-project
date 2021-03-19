@@ -31,6 +31,19 @@ class IndependentTable<Cols extends Object> {
         return new IndependentTable(this.columns, rows);
     }
 
+    removeCols<Remove extends keyof Cols>(cols: Remove[]): IndependentTable<Omit<Cols, Remove>> {
+        const newIndCols = this.columns.filter(col => {
+            return !cols.find(exclude => exclude === col);
+        }) as Exclude<keyof Cols, Remove>[];
+        const newIndRows: Map<number, Omit<Cols, Remove>> = new Map();
+        for (const [id, row] of this.rows) {
+            const newRow: Partial<Omit<Cols, Remove>> = {};
+            newIndCols.forEach(col => newRow[col] = row[col]);
+            newIndRows.set(id, newRow as Omit<Cols, Remove>);
+        }
+        return new IndependentTable(newIndCols, newIndRows);
+    }
+
     print() {
         console.table([...this.rows.values()], this.columns.map(col => col as string));
     }
@@ -79,7 +92,16 @@ class Row<Cols extends Object> {
 
 type Parsers<T> = { [K in keyof T]: (_: any) => T[K] };
 
-class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number }> }> {
+type Schema<T> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
+
+type UnionToIntersection<U> =
+    (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never
+
+type NoUnion<Key> =
+    // If this is a simple type UnionToIntersection<Key> will be the same type, otherwise it will an intersection of all types in the union and probably will not extend `Key`
+    [Key] extends [UnionToIntersection<Key>] ? Key : never;
+
+class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     independentTable: IndependentTable<IndRow>;
     dependentTables: DepTables;
 
@@ -121,7 +143,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         this.dependentTables = dependentTables;
     }
 
-    query<K extends keyof DepTables>(key: K, where: IndRow): DepTables[K] {
+    query<K extends keyof DepTables>(key: K, where: Partial<IndRow>): DepTables[K] {
         const table: DepTables[K] = this.dependentTables[key];
         const id = this.independentTable.filter(where).rows.keys().next();
         if (id.done === false) {
@@ -131,18 +153,10 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         }
     }
 
-    pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>>(cols: Cols[], namesTo: Exclude<Name, keyof DepTables>, valuesTo: Value) {
-        const newIndCols = this.independentTable.columns.filter(col => {
-            return !cols.find(exclude => exclude === col);
-        }) as Exclude<keyof IndRow, Cols>[];
-        const newIndRows: Map<number, Omit<IndRow, Cols>> = new Map();
-        for (const [id, row] of this.independentTable.rows) {
-            const newRow: Partial<Omit<IndRow, Cols>> = {};
-            newIndCols.forEach(col => newRow[col] = row[col]);
-            newIndRows.set(id, newRow as Omit<IndRow, Cols>);
-        }
-        const newInd = new IndependentTable(newIndCols, newIndRows);
-
+    pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
+        cols: Cols[], namesTo: NoUnion<Name>, valuesTo: NoUnion<Value>, header: NoUnion<Exclude<Header, keyof DepTables>>
+    ) {
+        const newInd = this.independentTable.removeCols(cols);
         const depRows: ({ ind_id: number } & { [_ in Name]: string } & { [_ in Value]: IndRow[Cols] })[] = [];
         for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
@@ -153,23 +167,15 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         }
         const newDep = new BasicTable(["ind_id", namesTo, valuesTo], depRows);
 
-        const newDeps = { [namesTo]: newDep } as { [_ in Name]: typeof newDep };
+        const newDeps = { [header]: newDep } as { [_ in Header]: typeof newDep };
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-    setDependentVar<Variable extends keyof IndRow>(variable: Variable) {
-        const newIndCols = this.independentTable.columns.filter(col => col !== variable) as Exclude<keyof IndRow, Variable>[];
-        const newIndRows: Map<number, Omit<IndRow, Variable>> = new Map();
-        for (const [id, row] of this.independentTable.rows) {
-            const newRow: Partial<Omit<IndRow, Variable>> = {};
-            newIndCols.forEach(col => newRow[col] = row[col]);
-            newIndRows.set(id, newRow as Omit<IndRow, Variable>);
-        }
-        const newInd = new IndependentTable(newIndCols, newIndRows);
-
+    setDependentVar<Variable extends keyof IndRow>(variable: NoUnion<Variable>) {
+        const newInd = this.independentTable.removeCols([variable]);
         const depRows: ({ ind_id: number } & { [_ in Variable]: IndRow[Variable] })[] = [];
         for (const [id, row] of this.independentTable.rows) {
-            const value = { [variable]: row[variable] } as { [_ in Variable]: IndRow[Variable] };
+            const value = { [variable]: row[variable] } as { [_ in Variable]: IndRow[NoUnion<Variable>] };
             depRows.push({ ind_id: id, ...value });
         }
         const newDep = new BasicTable(["ind_id", variable], depRows);
@@ -178,10 +184,11 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-
     pivotWider<Name extends keyof IndRow>(namesFrom: Name)
-        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<any> }> {
-        return undefined;
+        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Schema<DepTables[K]> & { [_ in IndRow[Name] & string]: number }> }> {
+        const newInd = this.independentTable.removeCols([namesFrom]);
+        // TODO: actually pivot
+        return new Table(newInd, this.dependentTables)
     }
 
     print() {
@@ -194,36 +201,34 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<{ ind_id: number
     }
 }
 
-const foo = Table.new(["x", "A", "B"], [{ "x": 7, "A": 1, "B": 2 } as const, { "x": 5, "A": 3, "B": 4 } as const]);
+const foo = Table.new(["x", "A"], [{ "x": "foo", "A": 1 } as const, { "x": "bar", "A": 3 } as const]);
 foo.print();
-const bar = foo.pivotLonger(["A", "B"], "assignment", "score");
+const bar = foo.pivotLonger(["A"], "assignment", "score", "foobar");
 console.log();
 bar.print();
 const foobar = bar.pivotWider("x");
-// const baz = bar.pivotLonger(["y"], "lab", "score");
+type t = typeof foobar.dependentTables;
+const baz = bar.pivotLonger(["x"], "lab", "score", "barbaz");
 console.log();
 // baz.print();
 const a = "hello";
 const b = "world";
 const c = `${a} ${b}` as const;
+const d = baz.dependentTables["foobar"];
+const e = bar.independentTable;
+type foo = Schema<typeof e>["x"];
 
 const parsers = {
     section: Number,
     student: String,
     test1: Number,
     test2: Number,
-    test3: Number,
-    test4: Number,
-    test5: Number,
     lab1: String,
     lab2: String,
-    lab3: String,
-    lab4: String,
-    lab5: String
 };
 Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
-    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2", "lab3", "lab4", "lab5"], "lab", "score");
-    const pivotTest = pivotLab.pivotLonger(["test1", "test2", "test3", "test4", "test5"], "test", "score");
+    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
+    const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
     pivotTest.print();
     const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
     thomasLabGrades.print();
