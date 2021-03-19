@@ -218,7 +218,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             }
         }
 
-        function foo<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
+        function pivotWider<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
             type NewCols = { [_ in NewVars]: T[DepVar] };
             type Row = Omit<T, DepVar> & NewCols;
             const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
@@ -258,7 +258,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         type NewDepTables = { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in NewVars]: Schema<DepTables[K]>[DepVars[K]] }> };
         const newDepTables: Partial<NewDepTables> = {};
         for (const header in this.dependentTables) {
-            newDepTables[header] = foo(this.dependentTables[header], dependentVars[header]);
+            newDepTables[header] = pivotWider(this.dependentTables[header], dependentVars[header]);
         }
 
         return new Table(dedupedNewInd, newDepTables as NewDepTables)
