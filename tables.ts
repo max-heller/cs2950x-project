@@ -226,7 +226,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
 
             const partialRows: [Omit<T, DepVar>, Partial<NewCols>][] = [];
             for (let row of table.rows) {
-                const col = oldInd.rows.get(row["ind_id"])[namesFrom];
+                const col = oldInd.rows.get(row.ind_id)[namesFrom];
                 if (typeof col !== "string") {
                     throw new Error(`ERROR: '${col}'`);
                 }
