@@ -190,6 +190,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
 
     pivotWider<Name extends keyof IndRow, DepVars extends { [K in keyof DepTables]: Exclude<keyof Schema<DepTables[K]>, "ind_id"> }>(namesFrom: Name, dependentVars: DepVars)
         : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
+        const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
         const indRows = [...newInd.rows.entries()];
         const idMap: Map<number, number> = new Map();
@@ -202,7 +203,6 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         for (const [id, row] of distinctIndRows) {
             newIndRows.set(id, row);
         }
-        console.log(distinctIndRows, idMap);
         const dedupedNewInd = new IndependentTable(newInd.columns, newIndRows);
 
         type NewVars = IndRow[Name] & string;
@@ -218,13 +218,40 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             }
         }
 
-        function foo<T, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
-            type Row = Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] };
+        function foo<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
+            type NewCols = { [_ in NewVars]: T[DepVar] };
+            type Row = Omit<T, DepVar> & NewCols;
+            const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
+
+            const partialRows: [Omit<T, DepVar>, Partial<NewCols>][] = [];
+            for (let row of table.rows) {
+                const col = oldInd.rows.get(row["ind_id"])[namesFrom];
+                if (typeof col !== "string") {
+                    throw new Error(`ERROR: '${col}'`);
+                }
+                row = { ...row };
+                row.ind_id = idMap.get(row.ind_id);
+                const matching = partialRows.find(([existing, _]) => cols.every(col => row[col] === existing[col]));
+                if (matching === undefined) {
+                    const existing = { ...row };
+                    delete existing[depVar];
+                    const partial = {} as Partial<NewCols>;
+                    partial[col] = row[depVar];
+                    partialRows.push([existing, partial]);
+                } else {
+                    const [_, partial] = matching;
+                    if (partial[col] === undefined) {
+                        partial[col] = row[depVar];
+                    } else {
+                        throw new Error(`Duplicate`);
+                    }
+                }
+            }
 
             const rows: Row[] = [];
-            // TODO: make the rows
-
-            const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
+            for (const [independent, dependent] of partialRows) {
+                rows.push({ ...independent, ...dependent as Row });
+            }
             return new BasicTable([...cols, ...distinctVals], rows);
         }
 
@@ -258,24 +285,29 @@ const foo = Table.new(
 );
 foo.print();
 const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
-console.log();
 bar.print();
 const foobar = bar.pivotWider("element", { "temperature": "temp" });
 foobar.dependentTables.temperature.rows;
 foobar.print();
 
-// const parsers = {
-//     section: Number,
-//     student: String,
-//     test1: Number,
-//     test2: Number,
-//     lab1: String,
-//     lab2: String,
-// };
-// Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
-//     const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
-//     const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
-//     pivotTest.print();
-//     const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
-//     thomasLabGrades.print();
-// });
+const parsers = {
+    section: Number,
+    student: String,
+    test1: Number,
+    test2: Number,
+    test3: Number,
+    test4: Number,
+    test5: Number,
+    lab1: String,
+    lab2: String,
+    lab3: String,
+    lab4: String,
+    lab5: String,
+};
+Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
+    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
+    const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
+    // pivotTest.print();
+    const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
+    // thomasLabGrades.print();
+});
