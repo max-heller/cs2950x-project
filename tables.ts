@@ -45,7 +45,11 @@ class IndependentTable<Cols extends Object> {
     }
 
     print() {
-        console.table([...this.rows.values()], this.columns.map(col => col as string));
+        const rows = [];
+        for (const [id, row] of this.rows) {
+            rows.push({ id: id, ...row });
+        }
+        console.table(rows, ["id", ...this.columns.map(col => col as string)]);
     }
 }
 
@@ -157,7 +161,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         cols: Cols[], namesTo: NoUnion<Name>, valuesTo: NoUnion<Value>, header: NoUnion<Exclude<Header, keyof DepTables>>
     ) {
         const newInd = this.independentTable.removeCols(cols);
-        const depRows: ({ ind_id: number } & { [_ in Name]: string } & { [_ in Value]: IndRow[Cols] })[] = [];
+        const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
                 const name = { [namesTo]: col as string } as { [_ in Name]: string };
@@ -173,7 +177,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
 
     setDependentVar<Variable extends keyof IndRow>(variable: NoUnion<Variable>) {
         const newInd = this.independentTable.removeCols([variable]);
-        const depRows: ({ ind_id: number } & { [_ in Variable]: IndRow[Variable] })[] = [];
+        const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
             const value = { [variable]: row[variable] } as { [_ in Variable]: IndRow[NoUnion<Variable>] };
             depRows.push({ ind_id: id, ...value });
@@ -187,8 +191,42 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     pivotWider<Name extends keyof IndRow>(namesFrom: Name)
         : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Schema<DepTables[K]> & { [_ in IndRow[Name] & string]: number }> }> {
         const newInd = this.independentTable.removeCols([namesFrom]);
-        // TODO: actually pivot
-        return new Table(newInd, this.dependentTables)
+        const indRows = [...newInd.rows.entries()];
+        const idMap: Map<number, number> = new Map();
+        const distinctIndRows = indRows.filter(([id, row], idx) => {
+            const matching = indRows.findIndex(([_, other]) => newInd.columns.every(k => row[k] === other[k]));
+            idMap.set(id, indRows[matching][0]);
+            return matching === idx;
+        });
+        const newIndRows = new Map();
+        for (const [id, row] of distinctIndRows) {
+            newIndRows.set(id, row);
+        }
+        console.log(distinctIndRows, idMap);
+        const dedupedNewInd = new IndependentTable(newInd.columns, newIndRows);
+
+        type NewVars = IndRow[Name] & string;
+        const distinctVals: NewVars[] = [];
+        for (const [_, row] of this.independentTable.rows) {
+            const x = row[namesFrom];
+            if (typeof x === "string") {
+                if (!distinctVals.includes(x)) {
+                    distinctVals.push(x);
+                }
+            } else {
+                throw new Error(`Cannot pivotWider on non-string value '${x}'`);
+            }
+        }
+
+        type NewDepTables = { [K in keyof DepTables]: BasicTable<Schema<DepTables[K]> & { [_ in NewVars]: number }> };
+        const newDepTables: Partial<NewDepTables> = {};
+        for (const header in this.dependentTables) {
+            const depRows: any[] = [];
+            const x = new BasicTable(["ind_id", ...distinctVals], depRows);
+            newDepTables[header] = x as BasicTable<any>;
+        }
+
+        return new Table(dedupedNewInd, newDepTables as NewDepTables)
     }
 
     print() {
@@ -201,35 +239,34 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     }
 }
 
-const foo = Table.new(["x", "A"], [{ "x": "foo", "A": 1 } as const, { "x": "bar", "A": 3 } as const]);
+const foo = Table.new(
+    ["year", "month", "element", "d1", "d2"],
+    [
+        { year: 2020, month: 1, element: "tmax", d1: 19, d2: 50 } as const,
+        { year: 2020, month: 1, element: "tmin", d1: 10, d2: 20 } as const,
+        { year: 2020, month: 2, element: "tmax", d1: 5, d2: 11 } as const,
+        { year: 2020, month: 2, element: "tmin", d1: 0, d2: 9 } as const,
+    ]
+);
 foo.print();
-const bar = foo.pivotLonger(["A"], "assignment", "score", "foobar");
+const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
 console.log();
 bar.print();
-const foobar = bar.pivotWider("x");
-type t = typeof foobar.dependentTables;
-const baz = bar.pivotLonger(["x"], "lab", "score", "barbaz");
-console.log();
-// baz.print();
-const a = "hello";
-const b = "world";
-const c = `${a} ${b}` as const;
-const d = baz.dependentTables["foobar"];
-const e = bar.independentTable;
-type foo = Schema<typeof e>["x"];
+const foobar = bar.pivotWider("element");
+foobar.print();
 
-const parsers = {
-    section: Number,
-    student: String,
-    test1: Number,
-    test2: Number,
-    lab1: String,
-    lab2: String,
-};
-Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
-    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
-    const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
-    pivotTest.print();
-    const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
-    thomasLabGrades.print();
-});
+// const parsers = {
+//     section: Number,
+//     student: String,
+//     test1: Number,
+//     test2: Number,
+//     lab1: String,
+//     lab2: String,
+// };
+// Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
+//     const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
+//     const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
+//     pivotTest.print();
+//     const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
+//     thomasLabGrades.print();
+// });
