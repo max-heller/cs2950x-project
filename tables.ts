@@ -1,7 +1,7 @@
 import { createReadStream } from 'fs';
 import * as parse from 'csv-parse';
 
-class IndependentTable<Cols extends Object> {
+class IndependentTable<Cols> {
     columns: (keyof Cols)[];
     rows: Map<number, Cols>;
 
@@ -10,8 +10,12 @@ class IndependentTable<Cols extends Object> {
         this.rows = rows;
     }
 
-    get(id: number): Row<Cols & { id: number }> {
-        return new Row(["id", ...this.columns], { ...this.rows.get(id), "id": id });
+    get(id: number): Row<Cols & { id: number }> | undefined {
+        const row = this.rows.get(id);
+        if (row === undefined) {
+            return undefined;
+        }
+        return new Row(["id", ...this.columns], { id: id, ...row });
     }
 
     filter(by: Partial<Cols>) {
@@ -54,7 +58,7 @@ class IndependentTable<Cols extends Object> {
 }
 
 
-class BasicTable<Cols extends Object> {
+class BasicTable<Cols> {
     columns: (keyof Cols)[];
     rows: Cols[];
 
@@ -79,12 +83,16 @@ class BasicTable<Cols extends Object> {
         return new BasicTable(this.columns, rows);
     }
 
+    empty() {
+        return new BasicTable(this.columns, []);
+    }
+
     print() {
         console.table(this.rows, this.columns.map(col => col as string));
     }
 }
 
-class Row<Cols extends Object> {
+class Row<Cols> {
     columns: (keyof Cols)[];
     values: Cols;
 
@@ -153,7 +161,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         if (id.done === false) {
             return table.filter({ ind_id: id.value }) as DepTables[K];
         } else {
-            return new BasicTable(table.columns, []) as DepTables[K];
+            return table.empty() as DepTables[K];
         }
     }
 
@@ -226,12 +234,20 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
 
             const partialRows: [Omit<T, DepVar>, Partial<NewCols>][] = [];
             for (let row of table.rows) {
-                const col = oldInd.rows.get(row.ind_id)[namesFrom];
+                const indRow = oldInd.rows.get(row.ind_id);
+                if (indRow === undefined) {
+                    throw new Error(`Invalid ind_id: '${row.ind_id}'`);
+                }
+                const col = indRow[namesFrom];
                 if (typeof col !== "string") {
                     throw new Error(`ERROR: '${col}'`);
                 }
                 row = { ...row };
-                row.ind_id = idMap.get(row.ind_id);
+                const mappedId = idMap.get(row.ind_id);
+                if (mappedId === undefined) {
+                    throw new Error(`Unmapped ind_id: '${row.ind_id}'`);
+                }
+                row.ind_id = mappedId;
                 const matching = partialRows.find(([existing, _]) => cols.every(col => row[col] === existing[col]));
                 if (matching === undefined) {
                     const existing = { ...row };
