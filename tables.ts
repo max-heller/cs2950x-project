@@ -188,8 +188,8 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-    pivotWider<Name extends keyof IndRow>(namesFrom: Name)
-        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Schema<DepTables[K]> & { [_ in IndRow[Name] & string]: number }> }> {
+    pivotWider<Name extends keyof IndRow, DepVars extends { [K in keyof DepTables]: Exclude<keyof Schema<DepTables[K]>, "ind_id"> }>(namesFrom: Name, dependentVars: DepVars)
+        : Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in IndRow[Name] & string]: Schema<DepTables[K]>[DepVars[K]] }> }> {
         const newInd = this.independentTable.removeCols([namesFrom]);
         const indRows = [...newInd.rows.entries()];
         const idMap: Map<number, number> = new Map();
@@ -218,12 +218,20 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             }
         }
 
-        type NewDepTables = { [K in keyof DepTables]: BasicTable<Schema<DepTables[K]> & { [_ in NewVars]: number }> };
+        function foo<T, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] }> {
+            type Row = Omit<T, DepVar> & { [_ in NewVars]: T[DepVar] };
+
+            const rows: Row[] = [];
+            // TODO: make the rows
+
+            const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
+            return new BasicTable([...cols, ...distinctVals], rows);
+        }
+
+        type NewDepTables = { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & { [_ in NewVars]: Schema<DepTables[K]>[DepVars[K]] }> };
         const newDepTables: Partial<NewDepTables> = {};
         for (const header in this.dependentTables) {
-            const depRows: any[] = [];
-            const x = new BasicTable(["ind_id", ...distinctVals], depRows);
-            newDepTables[header] = x as BasicTable<any>;
+            newDepTables[header] = foo(this.dependentTables[header], dependentVars[header]);
         }
 
         return new Table(dedupedNewInd, newDepTables as NewDepTables)
@@ -252,7 +260,8 @@ foo.print();
 const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
 console.log();
 bar.print();
-const foobar = bar.pivotWider("element");
+const foobar = bar.pivotWider("element", { "temperature": "temp" });
+foobar.dependentTables.temperature.rows;
 foobar.print();
 
 // const parsers = {
