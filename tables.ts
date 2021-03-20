@@ -1,6 +1,3 @@
-import { createReadStream } from 'fs';
-import * as parse from 'csv-parse';
-
 class IndependentTable<Cols> {
     columns: (keyof Cols)[];
     rows: Map<number, Cols>;
@@ -102,8 +99,6 @@ class Row<Cols> {
     }
 }
 
-type Parsers<T> = { [K in keyof T]: (_: any) => T[K] };
-
 type Schema<T> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
 
 type UnionToIntersection<U> =
@@ -123,31 +118,6 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             rows.set(index, row);
         }
         return new Table(new IndependentTable(cols, rows), {});
-    }
-
-    static async fromCsv<Row>(filename: string, parsers: Parsers<Row>): Promise<Table<Row, {}>> {
-        const rows: any[][] = [];
-        return new Promise((resolve, reject) => {
-            createReadStream(filename)
-                .pipe(parse())
-                .on('data', (row: any) => {
-                    rows.push(row);
-                })
-                .on('end', () => {
-                    const cols = rows[0].map(String) as (keyof Row)[];
-                    const data: Row[] = [];
-                    for (const row of rows.slice(1)) {
-                        const rowObj: Partial<Row> = {};
-                        for (const [idx, val] of row.entries()) {
-                            const col = cols[idx];
-                            rowObj[col] = parsers[col](val);
-                        }
-                        data.push(rowObj as Row);
-                    }
-                    resolve(Table.new(cols, data));
-                })
-                .on('error', reject)
-        })
     }
 
     constructor(independentTable: IndependentTable<IndRow>, dependentTables: DepTables) {
@@ -290,44 +260,3 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         }
     }
 }
-
-/*
-const foo = Table.new(
-    ["year", "month", "element", "d1", "d2"],
-    [
-        { year: 2020, month: 1, element: "tmax", d1: 19, d2: 50 } as const,
-        { year: 2020, month: 1, element: "tmin", d1: 10, d2: 20 } as const,
-        { year: 2020, month: 2, element: "tmax", d1: 5, d2: 11 } as const,
-        { year: 2020, month: 2, element: "tmin", d1: 0, d2: 9 } as const,
-    ]
-);
-foo.print();
-const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
-bar.print();
-const foobar = bar.pivotWider("element", { "temperature": "temp" });
-foobar.dependentTables.temperature.rows;
-foobar.print();
-
-const parsers = {
-    section: Number,
-    student: String,
-    test1: Number,
-    test2: Number,
-    test3: Number,
-    test4: Number,
-    test5: Number,
-    lab1: String,
-    lab2: String,
-    lab3: String,
-    lab4: String,
-    lab5: String,
-};
-Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
-    const pivotLab = testsAndLabs.pivotLonger(["lab1", "lab2"], "lab", "score", "lab");
-    const pivotTest = pivotLab.pivotLonger(["test1", "test2"], "test", "score", "test");
-    // pivotTest.print();
-    const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
-    // thomasLabGrades.print();
-});
-
-*/

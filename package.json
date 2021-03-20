@@ -11,9 +11,6 @@
     "url": "https://github.com/max-heller/cs2950x-project/issues"
   },
   "homepage": "https://github.com/max-heller/cs2950x-project#readme",
-  "dependencies": {
-    "csv-parse": "^4.15.3"
-  },
   "devDependencies": {
     "@types/node": "^14.14.35"
   }
