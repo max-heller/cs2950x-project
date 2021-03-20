@@ -113,7 +113,7 @@ type NoUnion<Key> =
     // If this is a simple type UnionToIntersection<Key> will be the same type, otherwise it will an intersection of all types in the union and probably will not extend `Key`
     [Key] extends [UnionToIntersection<Key>] ? Key : never;
 
-class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
+export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     independentTable: IndependentTable<IndRow>;
     dependentTables: DepTables;
 
@@ -291,6 +291,7 @@ class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     }
 }
 
+/*
 const foo = Table.new(
     ["year", "month", "element", "d1", "d2"],
     [
@@ -328,3 +329,5 @@ Table.fromCsv("tests_and_labs.csv", parsers).then((testsAndLabs) => {
     const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
     // thomasLabGrades.print();
 });
+
+*/
