@@ -99,7 +99,14 @@ class Row<Cols> {
     }
 }
 
-type Schema<T> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
+// A RawTable is a BasicTable or an IndependentTable
+type RawTable<T> = BasicTable<T> | IndependentTable<T>
+// Given a RawTable, gets the type of a data row
+type Schema<T extends RawTable<any>> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
+// Given a RawTable, gets the types of all of the columns
+type ColsOf<T extends RawTable<any>> = keyof Schema<T>
+// Given a RawTable and a Column of T, gets tye type of that column
+type ColType<T extends RawTable<any>, C extends ColsOf<T>> = Schema<T>[C];
 
 type UnionToIntersection<U> =
     (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never
@@ -133,6 +140,12 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         } else {
             return table.empty() as DepTables[K];
         }
+    }
+
+    queryValue<L extends keyof DepTables, C extends ColsOf<DepTables[L]>>(label: L, whereInd: Partial<IndRow>, col: C, whereDep: Partial<Schema<DepTables[L]>>): ColType<DepTables[L], C> {
+        const table = this.query(label, whereInd).filter(whereDep);
+        const first = table.get(0);
+        return first.values[col];
     }
 
     pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(

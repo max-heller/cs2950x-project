@@ -16,6 +16,9 @@ bar.print();
 const foobar = bar.pivotWider("element", { "temperature": "temp" });
 foobar.dependentTables.temperature.rows;
 foobar.print();
+const d1tmax = foobar.queryValue("temperature", {"year": 2020, "month": 1}, "tmax", {"day": "d1"})
+console.log(d1tmax);
+
 
 table.print();
 const pivotLab = table.pivotLonger(["lab1", "lab2", "lab3", "lab4", "lab5"], "lab", "score", "lab");
@@ -23,3 +26,6 @@ const pivotTest = pivotLab.pivotLonger(["test1", "test2", "test3", "test4", "tes
 pivotTest.print();
 const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
 thomasLabGrades.print();
+// lab3 does not autofill
+const thomasLab1Grade = pivotTest.queryValue("lab", { "section": 2017, "student": "jmcclel" }, "score", {"lab": "lab3"});
+console.log(thomasLab1Grade);
