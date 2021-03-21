@@ -1,3 +1,5 @@
+import * as utils from "./utils"
+
 class IndependentTable<Cols> {
     columns: (keyof Cols)[];
     rows: Map<number, Cols>;
@@ -146,6 +148,24 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         const table = this.query(label, whereInd).filter(whereDep);
         const first = table.get(0);
         return first.values[col];
+    }
+
+    filter<L extends keyof DepTables>(label: L, condition: (table: DepTables[L]) => Boolean) {
+        const newIndData = utils.mapFilter(this.independentTable.rows, (_, value) => {
+            const depTable = this.query(label, value);
+            return condition(depTable);
+        });
+        const newIndTable = new IndependentTable(this.independentTable.columns, newIndData);
+
+        const newDepTables = utils.objMap(this.dependentTables, <K extends keyof DepTables>(_: K, value: DepTables[K]) => {
+            let depTableData: Schema<DepTables[K]>[] = [];
+            for (const [id, _] of newIndTable.rows) {
+                depTableData = [...depTableData, ...value.filter({ ind_id: id }).rows];
+            }
+            return new BasicTable(value.columns, depTableData);
+        });
+
+        return new Table(newIndTable, newDepTables);
     }
 
     pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
