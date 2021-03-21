@@ -17,6 +17,10 @@ class IndependentTable<Cols> {
         return new Row(["id", ...this.columns], { id: id, ...row });
     }
 
+    getCol<K extends keyof Cols>(col: K): Cols[K][] {
+        return [...this.rows.values()].map((row) => row[col]);
+    }
+
     filter(by: Partial<Cols>) {
         const rows = new Map();
         for (const [id, row] of this.rows) {
@@ -68,6 +72,10 @@ class BasicTable<Cols> {
 
     get(row: number): Row<Cols> {
         return new Row(this.columns, this.rows[row]);
+    }
+
+    getCol<K extends keyof Cols>(col: K): Cols[K][] {
+        return this.rows.map((row) => row[col]);
     }
 
     filter(by: Partial<Cols>) {

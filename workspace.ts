@@ -29,13 +29,7 @@ thomasLabGrades.print();
 // lab3 does not autofill
 const thomasLab1Grade = pivotTest.queryValue("lab", { "section": 2017, "student": "jmcclel" }, "score", {"lab": "lab3"});
 console.log(thomasLab1Grade);
-const got100 = pivotTest.filter("test", (table) => {
-    for (const row of table.rows) {
-        if (row.score === 100) {
-            return true;
-        }
-    }
-    return false;
-})
+
+const got100 = pivotTest.filter("test", (table) => table.getCol("score").includes(100))
 got100.print();
 const got100dep = got100.dependentTables.test;
