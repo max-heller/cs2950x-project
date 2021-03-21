@@ -1,9 +1,7 @@
-type Apply<F, A, B> = F extends (a: A, b: B) => infer C ? C : never;
 
-type Func<A, B, C> = (a: A, b: B) => C;
-
-export function objMap<O, F extends Func<keyof O, O[keyof O], any>>(obj: O, func:F): {[K in keyof O]: Apply<F, K, O[K]>}  {
-    type Result = {[K in keyof O]: Apply<F, K, O[K]>};
+export function objMap<O, R extends {[K in keyof O]: any}, F extends <K extends keyof O>(k: K, v: O[K]) => R[K]>(obj: O, func: F)
+    : {[K in keyof O]: R[K]}  {
+    type Result = {[K in keyof O]: R[K]};
     const newObj: Partial<Result> = {};
     for (const key in obj) {
         const value = obj[key];
