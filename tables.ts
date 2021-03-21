@@ -150,22 +150,38 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         return first.values[col];
     }
 
-    filter<L extends keyof DepTables>(label: L, condition: (table: DepTables[L]) => Boolean) {
+    filter<L extends keyof DepTables>(label: L, condition: (table: DepTables[L]) => Boolean)
+        : Table<IndRow, DepTables> {
         const newIndData = utils.mapFilter(this.independentTable.rows, (_, value) => {
             const depTable = this.query(label, value);
             return condition(depTable);
         });
         const newIndTable = new IndependentTable(this.independentTable.columns, newIndData);
 
-        const newDepTables = utils.objMap(this.dependentTables, <K extends keyof DepTables>(_: K, value: DepTables[K]) => {
+        // const newDepTables = utils.objMap(this.dependentTables, <K extends keyof DepTables>(_: K, value: DepTables[K]) => {
+        //     let depTableData: Schema<DepTables[K]>[] = [];
+        //     for (const [id, _] of newIndTable.rows) {
+        //         depTableData = [...depTableData, ...value.filter({ ind_id: id }).rows];
+        //     }
+        //     return new BasicTable(value.columns, depTableData) as DepTables[K];
+        // });
+
+        function filterTable<K extends keyof DepTables>(_: K, value: DepTables[K]) {
             let depTableData: Schema<DepTables[K]>[] = [];
             for (const [id, _] of newIndTable.rows) {
                 depTableData = [...depTableData, ...value.filter({ ind_id: id }).rows];
             }
-            return new BasicTable(value.columns, depTableData);
-        });
+            return new BasicTable(value.columns, depTableData) as DepTables[K];
+        }
 
-        return new Table(newIndTable, newDepTables);
+        const newDepTables: Partial<DepTables> = {};
+        for (const key in this.dependentTables) {
+            const value = this.dependentTables[key];
+            const newValue = filterTable(key, value);
+            newDepTables[key] = newValue;
+        }
+
+        return new Table<IndRow, DepTables>(newIndTable, newDepTables as DepTables);
     }
 
     pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
