@@ -180,6 +180,9 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
     pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
         cols: Cols[], namesTo: NoUnion<Name>, valuesTo: NoUnion<Value>, header: NoUnion<Exclude<Header, keyof DepTables>>
     ) {
+        if (new Set(cols).size !== cols.length) {
+            throw new Error(`pivotLonger columns must be distinct: [${cols.join(", ")}]`)
+        }
         const newInd = this.independentTable.removeCols(cols);
         const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
