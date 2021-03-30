@@ -23,6 +23,8 @@ foobar.print();
 const d1tmax = foobar.queryValue("temperature", { "year": 2020, "month": 1 }, "temp-tmax", { "day": "d1" })
 console.log(d1tmax);
 const barbaz = foobar.pivotWider("yeehaw");
+const lol = barbaz.queryValue("temperature", { "year": 2020, "month": 1 }, "temp-tmax-a", { "day": "d1" });
+const lol2: number = lol;
 barbaz.print();
 
 

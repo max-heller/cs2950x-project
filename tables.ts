@@ -111,20 +111,14 @@ class Row<Cols> {
     }
 }
 
-// // A RawTable is a BasicTable or an IndependentTable
-// type RawTable<T> = BasicTable<T> | IndependentTable<T>
-// // Given a RawTable, gets the type of a data row
-// type Schema<T extends RawTable<any>> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
 type Schema<T extends IndependentTable<any>> = (T extends IndependentTable<infer X> ? X : never);
 type IndSchema<T extends BasicTable<any, any>> = (T extends BasicTable<infer I, infer D> ? I : never);
 type DepSchema<T extends BasicTable<any, any>> = (T extends BasicTable<infer I, infer D> ? D : never);
-// // Given a RawTable, gets the types of all of the columns
-// type ColsOf<T extends RawTable<any>> = keyof Schema<T>
+
 type ColsOf<T extends IndependentTable<any>> = keyof Schema<T>
 type IndColsOf<T extends BasicTable<any, any>> = keyof IndSchema<T>
 type DepColsOf<T extends BasicTable<any, any>> = keyof DepSchema<T>
-// // Given a RawTable and a Column of T, gets tye type of that column
-// type ColType<T extends RawTable<any>, C extends ColsOf<T>> = Schema<T>[C];
+
 type ColType<T extends IndependentTable<any>, C extends ColsOf<T>> = Schema<T>[C];
 type IndColType<T extends BasicTable<any, any>, C extends IndColsOf<T>> = IndSchema<T>[C];
 type DepColType<T extends BasicTable<any, any>, C extends DepColsOf<T>> = DepSchema<T>[C];
@@ -182,7 +176,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             for (const [id, _] of newIndTable.rows) {
                 depTableData = [...depTableData, ...value.filter({ ind_id: id }).rows];
             }
-            return new BasicTable(value.indCols as IndColsOf<DepTables[K]>[], value.depCols as DepColsOf<DepTables[K]>[], depTableData);
+            return new BasicTable<IndSchema<DepTables[K]>, DepSchema<DepTables[K]>>(value.indCols, value.depCols, depTableData);
         });
 
         return new Table<IndRow, DepTables>(newIndTable, newDepTables);
