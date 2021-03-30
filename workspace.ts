@@ -2,12 +2,16 @@ import { Table } from "./tables"
 import { table } from "./examples/tests_and_labs"
 
 const foo = Table.new(
-    ["year", "month", "element", "d1", "d2"],
+    ["year", "month", "yeehaw", "element", "d1", "d2"],
     [
-        { year: 2020, month: 1, element: "tmax", d1: 19, d2: 50 } as const,
-        { year: 2020, month: 1, element: "tmin", d1: 10, d2: 20 } as const,
-        { year: 2020, month: 2, element: "tmax", d1: 5, d2: 11 } as const,
-        { year: 2020, month: 2, element: "tmin", d1: 0, d2: 9 } as const,
+        { year: 2020, month: 1, yeehaw: "a", element: "tmax", d1: 1, d2: 2 } as const,
+        { year: 2020, month: 1, yeehaw: "a", element: "tmin", d1: 3, d2: 4 } as const,
+        { year: 2020, month: 1, yeehaw: "b", element: "tmax", d1: 5, d2: 6 } as const,
+        { year: 2020, month: 1, yeehaw: "b", element: "tmin", d1: 7, d2: 8 } as const,
+        { year: 2020, month: 2, yeehaw: "a", element: "tmax", d1: 9, d2: 10 } as const,
+        { year: 2020, month: 2, yeehaw: "a", element: "tmin", d1: 11, d2: 12 } as const,
+        { year: 2020, month: 2, yeehaw: "b", element: "tmax", d1: 13, d2: 14 } as const,
+        { year: 2020, month: 2, yeehaw: "b", element: "tmin", d1: 15, d2: 16 } as const,
     ]
 );
 foo.print();
@@ -16,8 +20,10 @@ bar.print();
 const foobar = bar.pivotWider("element");
 foobar.dependentTables.temperature.rows;
 foobar.print();
-const d1tmax = foobar.queryValue("temperature", {"year": 2020, "month": 1}, "tmax", {"day": "d1"})
+const d1tmax = foobar.queryValue("temperature", { "year": 2020, "month": 1 }, "temp-tmax", { "day": "d1" })
 console.log(d1tmax);
+const barbaz = foobar.pivotWider("yeehaw");
+barbaz.print();
 
 
 table.print();
@@ -27,7 +33,7 @@ pivotTest.print();
 const thomasLabGrades = pivotTest.query("lab", { "section": 2018, "student": "tdv" });
 thomasLabGrades.print();
 // lab3 does not autofill
-const thomasLab1Grade = pivotTest.queryValue("lab", { "section": 2017, "student": "jmcclel" }, "score", {"lab": "lab3"});
+const thomasLab1Grade = pivotTest.queryValue("lab", { "section": 2017, "student": "jmcclel" }, "score", { "lab": "lab3" });
 console.log(thomasLab1Grade);
 
 const got100 = pivotTest.filter("test", (table) => table.getCol("score").includes(100))

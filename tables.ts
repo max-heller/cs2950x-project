@@ -238,7 +238,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
     ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]:
         BasicTable<
             IndSchema<DepTables[K]>,
-            Record<IndRow[Name] & string, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
+            Record<`${DepColsOf<DepTables[K]> & string}-${IndRow[Name] & string}`, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
         > }> {
         const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
@@ -269,9 +269,10 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
         }
 
         function pivotWider<T extends { ind_id: number }, U>(table: BasicTable<T, U>):
-            BasicTable<T, Record<NewVars, U[keyof U]>> {
+            BasicTable<T, Record<`${keyof U & string}-${NewVars}`, U[keyof U]>> {
             type DepVar = keyof U;
-            type NewDepCols = Record<NewVars, U[DepVar]>;
+            type NewDepVars = `${DepVar & string}-${NewVars}`;
+            type NewDepCols = Record<NewDepVars, U[DepVar]>;
             type Row = T & NewDepCols;
 
             const partialRows: [T, Partial<NewDepCols>][] = [];
@@ -290,18 +291,25 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                     throw new Error(`Unmapped ind_id: '${row.ind_id}'`);
                 }
                 row.ind_id = mappedId;
-                const depVar = table.depCols[0]; // TODO: Make this allow multiple depVars
                 const matching = partialRows.find(([existing, _]) => table.indCols.every(col => row[col] === existing[col]));
+                let _, partial: Partial<NewDepCols>;
                 if (matching === undefined) {
                     const existing = { ...row };
-                    delete existing[depVar];
-                    const partial = {} as Partial<NewDepCols>;
-                    partial[col] = row[depVar];
+                    for (const depVar of table.depCols) {
+                        delete existing[depVar];
+                    }
+                    partial = {} as Partial<NewDepCols>;
                     partialRows.push([existing, partial]);
                 } else {
-                    const [_, partial] = matching;
-                    if (partial[col] === undefined) {
-                        partial[col] = row[depVar];
+                    [_, partial] = matching;
+                }
+                for (const depVar of table.depCols) {
+                    if (typeof depVar !== "string") {
+                        throw new Error(`ERROR: '${col}'`);
+                    }
+                    const newCol: NewDepVars = `${depVar}-${col}` as const;
+                    if (partial[newCol] === undefined) {
+                        partial[newCol] = row[depVar];
                     } else {
                         throw new Error(`Duplicate`);
                     }
@@ -312,19 +320,27 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             for (const [independent, dependent] of partialRows) {
                 rows.push({ ...independent, ...dependent as Row });
             }
-            return new BasicTable(table.indCols, distinctVals, rows);
+            const depVars: NewDepVars[] = [];
+            for (const depVar of table.depCols) {
+                if (typeof depVar !== "string") {
+                    throw new Error("ERROR");
+                }
+                for (const val of distinctVals) {
+                    depVars.push(`${depVar}-${val}` as const);
+                }
+            }
+            return new BasicTable(table.indCols, depVars, rows);
         }
 
         type NewDepTables = { [K in keyof DepTables]:
             BasicTable<
                 IndSchema<DepTables[K]>,
-                Record<IndRow[Name] & string, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
+                Record<`${DepColsOf<DepTables[K]> & string}-${NewVars}`, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
             > };
         const newDepTables: Partial<NewDepTables> = {};
         for (const header in this.dependentTables) {
             newDepTables[header] = pivotWider(this.dependentTables[header]);
         }
-
         return new Table(dedupedNewInd, newDepTables as NewDepTables)
     }
 
