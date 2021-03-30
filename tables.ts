@@ -61,24 +61,26 @@ class IndependentTable<Cols> {
 }
 
 
-class BasicTable<Cols> {
-    columns: (keyof Cols)[];
-    rows: Cols[];
+class BasicTable<IndCols, DepCols> {
+    indCols: (keyof IndCols)[];
+    depCols: (keyof DepCols)[];
+    rows: (IndCols & DepCols)[];
 
-    constructor(cols: (keyof Cols)[], rows: Cols[]) {
-        this.columns = cols;
+    constructor(indCols: (keyof IndCols)[], depCols: (keyof DepCols)[], rows: (IndCols & DepCols)[]) {
+        this.indCols = indCols;
+        this.depCols = depCols;
         this.rows = rows;
     }
 
-    get(row: number): Row<Cols> {
-        return new Row(this.columns, this.rows[row]);
+    get(row: number): Row<IndCols & DepCols> {
+        return new Row([...this.indCols, ...this.depCols], this.rows[row]);
     }
 
-    getCol<K extends keyof Cols>(col: K): Cols[K][] {
+    getCol<K extends keyof (IndCols & DepCols)>(col: K): (IndCols & DepCols)[K][] {
         return this.rows.map((row) => row[col]);
     }
 
-    filter(by: Partial<Cols>) {
+    filter(by: Partial<IndCols>) {
         const rows = this.rows.filter(row => {
             for (const k in by) {
                 if (row[k] !== by[k]) {
@@ -87,15 +89,15 @@ class BasicTable<Cols> {
             }
             return true;
         });
-        return new BasicTable(this.columns, rows);
+        return new BasicTable(this.indCols, this.depCols, rows);
     }
 
     empty() {
-        return new BasicTable(this.columns, []);
+        return new BasicTable(this.indCols, this.depCols, []);
     }
 
     print() {
-        console.table(this.rows, this.columns.map(col => col as string));
+        console.table(this.rows, [...this.indCols, ...this.depCols].map(col => col as string));
     }
 }
 
@@ -109,14 +111,23 @@ class Row<Cols> {
     }
 }
 
-// A RawTable is a BasicTable or an IndependentTable
-type RawTable<T> = BasicTable<T> | IndependentTable<T>
-// Given a RawTable, gets the type of a data row
-type Schema<T extends RawTable<any>> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
-// Given a RawTable, gets the types of all of the columns
-type ColsOf<T extends RawTable<any>> = keyof Schema<T>
-// Given a RawTable and a Column of T, gets tye type of that column
-type ColType<T extends RawTable<any>, C extends ColsOf<T>> = Schema<T>[C];
+// // A RawTable is a BasicTable or an IndependentTable
+// type RawTable<T> = BasicTable<T> | IndependentTable<T>
+// // Given a RawTable, gets the type of a data row
+// type Schema<T extends RawTable<any>> = (T extends BasicTable<infer X> ? X : (T extends IndependentTable<infer X> ? X : never));
+type Schema<T extends IndependentTable<any>> = (T extends IndependentTable<infer X> ? X : never);
+type IndSchema<T extends BasicTable<any, any>> = (T extends BasicTable<infer I, infer D> ? I : never);
+type DepSchema<T extends BasicTable<any, any>> = (T extends BasicTable<infer I, infer D> ? D : never);
+// // Given a RawTable, gets the types of all of the columns
+// type ColsOf<T extends RawTable<any>> = keyof Schema<T>
+type ColsOf<T extends IndependentTable<any>> = keyof Schema<T>
+type IndColsOf<T extends BasicTable<any, any>> = keyof IndSchema<T>
+type DepColsOf<T extends BasicTable<any, any>> = keyof DepSchema<T>
+// // Given a RawTable and a Column of T, gets tye type of that column
+// type ColType<T extends RawTable<any>, C extends ColsOf<T>> = Schema<T>[C];
+type ColType<T extends IndependentTable<any>, C extends ColsOf<T>> = Schema<T>[C];
+type IndColType<T extends BasicTable<any, any>, C extends IndColsOf<T>> = IndSchema<T>[C];
+type DepColType<T extends BasicTable<any, any>, C extends DepColsOf<T>> = DepSchema<T>[C];
 
 type UnionToIntersection<U> =
     (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never
@@ -125,7 +136,7 @@ type NoUnion<Key> =
     // If this is a simple type UnionToIntersection<Key> will be the same type, otherwise it will an intersection of all types in the union and probably will not extend `Key`
     [Key] extends [UnionToIntersection<Key>] ? Key : never;
 
-export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
+export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any> }> {
     independentTable: IndependentTable<IndRow>;
     dependentTables: DepTables;
 
@@ -152,7 +163,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         }
     }
 
-    queryValue<L extends keyof DepTables, C extends ColsOf<DepTables[L]>>(label: L, whereInd: Partial<IndRow>, col: C, whereDep: Partial<Schema<DepTables[L]>>): ColType<DepTables[L], C> {
+    queryValue<L extends keyof DepTables, C extends DepColsOf<DepTables[L]>>(label: L, whereInd: Partial<IndRow>, col: C, whereDep: Partial<IndSchema<DepTables[L]>>): DepColType<DepTables[L], C> {
         const table = this.query(label, whereInd).filter(whereDep);
         const first = table.get(0);
         return first.values[col];
@@ -167,15 +178,24 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
         const newIndTable = new IndependentTable(this.independentTable.columns, newIndData);
 
         const newDepTables = utils.objMap(this.dependentTables, <K extends keyof DepTables>(_: K, value: DepTables[K]) => {
-            let depTableData: Schema<DepTables[K]>[] = [];
+            let depTableData: (IndSchema<DepTables[K]> & DepSchema<DepTables[K]>)[] = [];
             for (const [id, _] of newIndTable.rows) {
                 depTableData = [...depTableData, ...value.filter({ ind_id: id }).rows];
             }
-            return new BasicTable(value.columns, depTableData);
+            return new BasicTable(value.indCols as IndColsOf<DepTables[K]>[], value.depCols as DepColsOf<DepTables[K]>[], depTableData);
         });
 
         return new Table<IndRow, DepTables>(newIndTable, newDepTables);
     }
+
+    // map<L extends keyof DepTables, R extends {[K in ColsOf<DepTables[L]>]: any}>(
+    //     label: L, func: <K extends ColsOf<DepTables[L]>>(value: ColType<DepTables[L], K>) => R[K]
+    // ) {
+    //     const depTable = this.dependentTables[label];
+    //     const newData = depTable.rows.map((row) => utils.objMap(row, (key, value) => {
+
+    //     }));
+    // }
 
     pivotLonger<Cols extends keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
         cols: Cols[], namesTo: NoUnion<Name>, valuesTo: NoUnion<Value>, header: NoUnion<Exclude<Header, keyof DepTables>>
@@ -192,7 +212,9 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
                 depRows.push({ ind_id: id, ...name, ...value });
             }
         }
-        const newDep = new BasicTable(["ind_id", namesTo, valuesTo], depRows);
+        const indCols: (Name | "ind_id")[] = ["ind_id", namesTo];
+        const depCols: Value[] = [valuesTo];
+        const newDep = new BasicTable<Record<"ind_id", number> & Record<Name, string>, Record<Value, IndRow[Cols]>>(indCols, depCols, depRows);
 
         const newDeps = { [header]: newDep } as Record<Header, typeof newDep>;
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
@@ -205,15 +227,19 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             const value = { [variable]: row[variable] } as Record<Variable, IndRow[NoUnion<Variable>]>;
             depRows.push({ ind_id: id, ...value });
         }
-        const newDep = new BasicTable(["ind_id", variable], depRows);
+        const newDep = new BasicTable<Record<"ind_id", number>, Record<Variable, IndRow[Variable]>>(["ind_id"], [variable], depRows);
 
         const newDeps = { [variable]: newDep } as Record<Variable, typeof newDep>;
         return new Table(newInd, { ...this.dependentTables, ...newDeps });
     }
 
-    pivotWider<Name extends keyof Omit<IndRow, keyof { [K in keyof IndRow as (IndRow[K] extends string ? never : K)]: IndRow[K] }>, DepVars extends { [K in keyof DepTables]: keyof Omit<Schema<DepTables[K]>, "ind_id"> }>(
-        namesFrom: Name, dependentVars: DepVars
-    ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & Record<IndRow[Name] & string, Schema<DepTables[K]>[DepVars[K]]>> }> {
+    pivotWider<Name extends keyof Omit<IndRow, keyof { [K in keyof IndRow as (IndRow[K] extends string ? never : K)]: IndRow[K] }>>(
+        namesFrom: Name
+    ): Table<Omit<IndRow, Name>, { [K in keyof DepTables]:
+        BasicTable<
+            IndSchema<DepTables[K]>,
+            Record<IndRow[Name] & string, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
+        > }> {
         const oldInd = this.independentTable;
         const newInd = this.independentTable.removeCols([namesFrom]);
         const indRows = [...newInd.rows.entries()];
@@ -242,12 +268,13 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             }
         }
 
-        function pivotWider<T extends { ind_id: number }, DepVar extends keyof T>(table: BasicTable<T>, depVar: DepVar): BasicTable<Omit<T, DepVar> & Record<NewVars, T[DepVar]>> {
-            type NewCols = Record<NewVars, T[DepVar]>;
-            type Row = Omit<T, DepVar> & NewCols;
-            const cols = table.columns.filter(col => col !== depVar) as Exclude<keyof T, DepVar>[];
+        function pivotWider<T extends { ind_id: number }, U>(table: BasicTable<T, U>):
+            BasicTable<T, Record<NewVars, U[keyof U]>> {
+            type DepVar = keyof U;
+            type NewDepCols = Record<NewVars, U[DepVar]>;
+            type Row = T & NewDepCols;
 
-            const partialRows: [Omit<T, DepVar>, Partial<NewCols>][] = [];
+            const partialRows: [T, Partial<NewDepCols>][] = [];
             for (let row of table.rows) {
                 const indRow = oldInd.rows.get(row.ind_id);
                 if (indRow === undefined) {
@@ -263,11 +290,12 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
                     throw new Error(`Unmapped ind_id: '${row.ind_id}'`);
                 }
                 row.ind_id = mappedId;
-                const matching = partialRows.find(([existing, _]) => cols.every(col => row[col] === existing[col]));
+                const depVar = table.depCols[0]; // TODO: Make this allow multiple depVars
+                const matching = partialRows.find(([existing, _]) => table.indCols.every(col => row[col] === existing[col]));
                 if (matching === undefined) {
                     const existing = { ...row };
                     delete existing[depVar];
-                    const partial = {} as Partial<NewCols>;
+                    const partial = {} as Partial<NewDepCols>;
                     partial[col] = row[depVar];
                     partialRows.push([existing, partial]);
                 } else {
@@ -284,13 +312,17 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any> }> {
             for (const [independent, dependent] of partialRows) {
                 rows.push({ ...independent, ...dependent as Row });
             }
-            return new BasicTable([...cols, ...distinctVals], rows);
+            return new BasicTable(table.indCols, distinctVals, rows);
         }
 
-        type NewDepTables = { [K in keyof DepTables]: BasicTable<Omit<Schema<DepTables[K]>, DepVars[K]> & Record<NewVars, Schema<DepTables[K]>[DepVars[K]]>> };
+        type NewDepTables = { [K in keyof DepTables]:
+            BasicTable<
+                IndSchema<DepTables[K]>,
+                Record<IndRow[Name] & string, DepColType<DepTables[K], DepColsOf<DepTables[K]>>>
+            > };
         const newDepTables: Partial<NewDepTables> = {};
         for (const header in this.dependentTables) {
-            newDepTables[header] = pivotWider(this.dependentTables[header], dependentVars[header]);
+            newDepTables[header] = pivotWider(this.dependentTables[header]);
         }
 
         return new Table(dedupedNewInd, newDepTables as NewDepTables)

@@ -13,7 +13,7 @@ const foo = Table.new(
 foo.print();
 const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
 bar.print();
-const foobar = bar.pivotWider("element", { "temperature": "temp" });
+const foobar = bar.pivotWider("element");
 foobar.dependentTables.temperature.rows;
 foobar.print();
 const d1tmax = foobar.queryValue("temperature", {"year": 2020, "month": 1}, "tmax", {"day": "d1"})
