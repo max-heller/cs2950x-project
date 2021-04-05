@@ -361,6 +361,35 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             console.log(`Dependent table '${key}':`);
             this.dependentTables[key].print();
         }
-        console.log(this.ops)
+        let table: Table<IndRow, DepTables> = this;
+        for (const op of [...this.ops].reverse()) {
+            if (op.type === "wider") {
+                // table = table.pivotLonger();
+            } else if (op.type === "depvar") {
+                const indTable = table.independentTable.rows;
+                for (const [id, row] of indTable) {
+                    const v = op.variable as keyof IndRow & keyof DepTables;
+                    row[v] = table.queryValue(v, row, v, {});
+                }
+                const depTables = { ...table.dependentTables };
+                delete depTables[op.variable];
+
+
+                const depTable = table.dependentTables[op.variable];
+                const indRows = [];
+                for (const [id, row] of depTable.rows) {
+                    const value = { [op.variable]: row[op.variable] };
+                    indRows.push(value);
+                }
+
+
+                const restDepTables = { ...table.dependentTables };
+                delete restDepTables[op.variable];
+
+            } else if (op.type === "longer") {
+
+            }
+            console.log(op);
+        }
     }
 }
