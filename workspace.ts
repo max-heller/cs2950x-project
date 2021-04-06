@@ -25,13 +25,13 @@ const foo = Table.new(
 );
 
 foo.print();
-const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature");
+const bar = foo.pivotLonger(["d1", "d2"], "day", "temp", "temperature").setDependentVar("element");
 bar.print();
 // const foobarbaz = bar.pivotLonger(["e1", "e2"], "eay", "temp2", "temperature2");
 // foobarbaz.print();
-const foobar = bar.pivotWider("element");
-foobar.dependentTables.temperature.rows;
-foobar.print();
+// const foobar = bar.pivotWider("element");
+// foobar.dependentTables.temperature.rows;
+// foobar.print();
 // const d1tmax = foobar.queryValue("temperature", { "year": 2020, "month": 1 }, "temp-tmax", { "day": "d1" })
 // console.log(d1tmax);
 // const barbaz = foobar.pivotWider("yeehaw");
@@ -54,13 +54,13 @@ foobar.print();
 // got100.print();
 // const got100dep = got100.dependentTables.test;
 
-const t = Table.new(
-    ["year", "month", "tmp"],
-    [
-        { year: 2020, month: 1,   tmp: 2 } as const,
-        { year: 2020, month: 2,   tmp: 6 } as const,
-        { year: 2020, month: 3,   tmp: 10 } as const,
-        { year: 2020, month: 4,   tmp: 14 } as const,
-    ]
-);
-t.setDependentVar("tmp").print();
+// const t = Table.new(
+//     ["year", "month", "tmp"],
+//     [
+//         { year: 2020, month: 1,   tmp: 2 } as const,
+//         { year: 2020, month: 2,   tmp: 6 } as const,
+//         { year: 2020, month: 3,   tmp: 10 } as const,
+//         { year: 2020, month: 4,   tmp: 14 } as const,
+//     ]
+// );
+// t.setDependentVar("tmp").print();

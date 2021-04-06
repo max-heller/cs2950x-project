@@ -376,7 +376,22 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                 delete depTables[v];
                 table = new Table(indTable, depTables, []);
             } else if (op.type === "longer") {
-
+                const cols = op.cols as (keyof IndRow)[];
+                const indRows = new Map();
+                const indTable = new IndependentTable([...table.independentTable.columns, ...cols], indRows);
+                for (const [id, row] of table.independentTable.rows) {
+                    const newRow = {...row};
+                    for (const col of cols) {
+                        table.independentTable.print();
+                        const where = {[op.namesFrom]: col} as Partial<IndSchema<DepTables[keyof DepTables]>>;
+                        console.log(op.targetTable, row, col, table.queryValue(op.targetTable, row, op.valuesFrom, where));
+                        newRow[col] = table.queryValue(op.targetTable, row, op.valuesFrom, where) as IndRow[keyof IndRow];
+                    }
+                    indRows.set(id, newRow);
+                }
+                const depTables = { ...table.dependentTables };
+                delete depTables[op.targetTable];
+                table = new Table(indTable, depTables, []);
             }
         }
         table.independentTable.print();
