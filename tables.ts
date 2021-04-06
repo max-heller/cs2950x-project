@@ -131,9 +131,9 @@ type NoUnion<Key> =
     [Key] extends [UnionToIntersection<Key>] ? Key : never;
 
 type Op<Headers> =
-    | { type: "wider", namesFrom: string }
     | { type: "depvar", variable: string }
     | { type: "longer", cols: string[], namesFrom: string, valuesFrom: string, targetTable: Headers }
+    | { type: "wider", namesFrom: string, values: string[], origCols: { [H in Headers & string]: string[] } }
 
 export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any> }> {
     independentTable: IndependentTable<IndRow>;
@@ -350,22 +350,67 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
         for (const header in this.dependentTables) {
             newDepTables[header] = pivotWider(this.dependentTables[header]);
         }
-        const op: Op<keyof NewDepTables> = { type: "wider", namesFrom: namesFrom };
+
+        const origCols: Partial<{[H in keyof DepTables & string]: string[]}> = {};
+        for (const header in this.dependentTables) {
+            const cols: string[] = [];
+            for (const col of this.dependentTables[header].depCols) {
+                cols.push(col as string);
+            }
+            origCols[header] = cols;
+        }
+
+        const op: Op<keyof NewDepTables> = { type: "wider", namesFrom: namesFrom, values: distinctVals, origCols: origCols as {[H in keyof DepTables & string]: string[]} };
         return new Table<Omit<IndRow, Name>, NewDepTables>(dedupedNewInd, newDepTables as NewDepTables, [...this.ops, op]);
     }
 
     print() {
-        console.log("Independent table:");
-        this.independentTable.print();
-        for (const key in this.dependentTables) {
-            console.log(`Dependent table '${key}':`);
-            this.dependentTables[key].print();
-        }
+
         let table: Table<IndRow, DepTables> = this;
         for (const op of [...this.ops].reverse()) {
             if (op.type === "wider") {
-                // table = table.pivotLonger();
-            } else if (op.type === "depvar") {
+                let id = 0;
+                const newIndRows = new Map();
+                for (const [_, row] of table.independentTable.rows) {
+                    for (const value of op.values) {
+                        const newRow = {...row, [op.namesFrom]: value}
+                        newIndRows.set(id++, newRow);
+                    }
+                }
+                const newIndTable = new IndependentTable<IndRow & {[K in typeof op.namesFrom]: string}>([...table.independentTable.columns, op.namesFrom], newIndRows);
+
+                const newDepTables: Partial<{[S in string]: any}> = {}
+                for (const header in table.dependentTables) {
+                    const origDepTable = table.dependentTables[header];
+                    const origCols = op.origCols[header];
+                    let newTableRows: ({ [x: string]: {} } & { [x: string]: {} })[] = [];
+                    for (const origRow of origDepTable.rows) {
+                        const newRow: Partial<{[S in string]: any}> = {};
+                        for (const indCol of origDepTable.indCols) {
+                            newRow[indCol as string] = origRow[indCol];
+                        }
+
+                        const newRows = [];
+                        for (const value of op.values) {
+                            const fullNewRow = {...newRow};
+                            for (const origCol of op.origCols[header]) {
+                                const newCol = `${origCol}-${value}`;
+                                fullNewRow[origCol] = origRow[newCol];
+                            }
+                            const rowId: number = newIndTable.filter({...table.independentTable.rows.get(origRow["ind_id"]), [op.namesFrom]: value} as Partial<IndRow & { [x: string]: string; }>).rows.keys().next().value;
+                            fullNewRow["ind_id"] = rowId;
+                            newRows.push(fullNewRow);
+                        }
+
+                        newTableRows = [...newTableRows, ...newRows];
+                    }
+                    const newDepTable = new BasicTable(origDepTable.indCols as (string | number)[], origCols, newTableRows);
+                    
+                    newDepTables[header] = newDepTable;
+                }
+
+                table = new Table(newIndTable, newDepTables, []) as unknown as Table<IndRow, DepTables>; // lul
+             } else if (op.type === "depvar") {
                 const v = op.variable as keyof IndRow & keyof DepTables;
                 const indRows = new Map(table.independentTable.rows);
                 const indTable = new IndependentTable([...table.independentTable.columns, v], indRows);
@@ -382,9 +427,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                 for (const [id, row] of table.independentTable.rows) {
                     const newRow = {...row};
                     for (const col of cols) {
-                        table.independentTable.print();
                         const where = {[op.namesFrom]: col} as Partial<IndSchema<DepTables[keyof DepTables]>>;
-                        console.log(op.targetTable, row, col, table.queryValue(op.targetTable, row, op.valuesFrom, where));
                         newRow[col] = table.queryValue(op.targetTable, row, op.valuesFrom, where) as IndRow[keyof IndRow];
                     }
                     indRows.set(id, newRow);
