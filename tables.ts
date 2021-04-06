@@ -51,12 +51,17 @@ class IndependentTable<Cols> {
         return new IndependentTable(newIndCols, newIndRows);
     }
 
-    print() {
+    print(id=true) {
         const rows = [];
         for (const [id, row] of this.rows) {
             rows.push({ id: id, ...row });
         }
-        console.table(rows, ["id", ...this.columns.map(col => col as string)]);
+        const cols = this.columns.map(col => col as string);
+        if (id) {
+            console.table(rows, ["id", ...cols]);
+        } else {
+            console.table(rows, cols);
+        }
     }
 }
 
@@ -439,6 +444,6 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             }
         }
         const finalTable = new IndependentTable(this.originalCols as (keyof IndRow)[], table.independentTable.rows);
-        finalTable.print();
+        finalTable.print(false);
     }
 }
