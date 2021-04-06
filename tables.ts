@@ -383,15 +383,15 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                         newIndRows.set(id++, newRow);
                     }
                 }
-                const newIndTable = new IndependentTable<IndRow & {[K in typeof op.namesFrom]: string}>([...table.independentTable.columns, op.namesFrom], newIndRows);
+                const newIndTable = new IndependentTable<IndRow>([...table.independentTable.columns, op.namesFrom as keyof IndRow], newIndRows);
 
-                const newDepTables: Partial<{[S in string]: any}> = {}
+                const newDepTables: Partial<DepTables> = {}
                 for (const header in table.dependentTables) {
                     const origDepTable = table.dependentTables[header];
                     const origCols = op.origCols[header];
-                    let newTableRows: ({ [x: string]: {} } & { [x: string]: {} })[] = [];
+                    let newTableRows: Record<string, {}>[] = [];
                     for (const origRow of origDepTable.rows) {
-                        const newRow: Partial<{[S in string]: any}> = {};
+                        const newRow: Partial<Record<string, any>> = {};
                         for (const indCol of origDepTable.indCols) {
                             newRow[indCol as string] = origRow[indCol];
                         }
@@ -410,12 +410,12 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
 
                         newTableRows = [...newTableRows, ...newRows];
                     }
-                    const newDepTable = new BasicTable(origDepTable.indCols as (string | number)[], origCols, newTableRows);
+                    const newDepTable = new BasicTable(origDepTable.indCols as string[], origCols, newTableRows);
                     
-                    newDepTables[header] = newDepTable;
+                    newDepTables[header] = newDepTable as DepTables[Extract<keyof DepTables, string>];
                 }
 
-                table = new Table(newIndTable, newDepTables, [], this.originalCols) as unknown as Table<IndRow, DepTables>; // lul
+                table = new Table(newIndTable, newDepTables as DepTables, [], this.originalCols) as Table<IndRow, DepTables>;
              } else if (op.type === "depvar") {
                 const v = op.variable as keyof IndRow & keyof DepTables;
                 const indRows = new Map(table.independentTable.rows);
