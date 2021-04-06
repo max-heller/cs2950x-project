@@ -139,19 +139,21 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
     independentTable: IndependentTable<IndRow>;
     dependentTables: DepTables;
     ops: Op<keyof DepTables>[];
+    originalCols: string[];
 
-    static new<Row>(cols: (keyof Row)[], data: Row[]) {
+    static new<Row>(cols: (keyof Row & string)[], data: Row[]): Table<Row, {}> {
         const rows = new Map();
         for (const [index, row] of data.entries()) {
             rows.set(index, row);
         }
-        return new Table(new IndependentTable(cols, rows), {}, []);
+        return new Table(new IndependentTable(cols, rows), {}, [], cols);
     }
 
-    constructor(independentTable: IndependentTable<IndRow>, dependentTables: DepTables, ops: Op<keyof DepTables>[]) {
+    constructor(independentTable: IndependentTable<IndRow>, dependentTables: DepTables, ops: Op<keyof DepTables>[], originalCols: string[]) {
         this.independentTable = independentTable;
         this.dependentTables = dependentTables;
         this.ops = ops;
+        this.originalCols = originalCols;
     }
 
     query<K extends keyof DepTables>(key: K, where: Partial<IndRow>): DepTables[K] {
@@ -186,7 +188,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             return new BasicTable<IndSchema<DepTables[K]>, DepSchema<DepTables[K]>>(value.indCols, value.depCols, depTableData);
         });
 
-        return new Table<IndRow, DepTables>(newIndTable, newDepTables, this.ops);
+        return new Table<IndRow, DepTables>(newIndTable, newDepTables, this.ops, this.originalCols);
     }
 
     // map<L extends keyof DepTables, R extends {[K in ColsOf<DepTables[L]>]: any}>(
@@ -225,7 +227,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             valuesFrom: valuesTo,
             targetTable: header
         };
-        return new Table(newInd, { ...this.dependentTables, ...newDeps }, [...this.ops, op]);
+        return new Table(newInd, { ...this.dependentTables, ...newDeps }, [...this.ops, op], this.originalCols);
     }
 
     setDependentVar<Variable extends keyof IndRow & string>(variable: NoUnion<Variable>) {
@@ -239,7 +241,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
 
         const newDeps = { [variable]: newDep } as Record<Variable, typeof newDep>;
         const op: Op<keyof DepTables | Variable> = { type: "depvar", variable: variable };
-        return new Table(newInd, { ...this.dependentTables, ...newDeps }, [...this.ops, op]);
+        return new Table(newInd, { ...this.dependentTables, ...newDeps }, [...this.ops, op], this.originalCols);
     }
 
     pivotWider<Name extends string & keyof Omit<IndRow, keyof { [K in keyof IndRow as (IndRow[K] extends string ? never : K)]: IndRow[K] }>>(
@@ -361,11 +363,10 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
         }
 
         const op: Op<keyof NewDepTables> = { type: "wider", namesFrom: namesFrom, values: distinctVals, origCols: origCols as {[H in keyof DepTables & string]: string[]} };
-        return new Table<Omit<IndRow, Name>, NewDepTables>(dedupedNewInd, newDepTables as NewDepTables, [...this.ops, op]);
+        return new Table<Omit<IndRow, Name>, NewDepTables>(dedupedNewInd, newDepTables as NewDepTables, [...this.ops, op], this.originalCols);
     }
 
     print() {
-
         let table: Table<IndRow, DepTables> = this;
         for (const op of [...this.ops].reverse()) {
             if (op.type === "wider") {
@@ -409,7 +410,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                     newDepTables[header] = newDepTable;
                 }
 
-                table = new Table(newIndTable, newDepTables, []) as unknown as Table<IndRow, DepTables>; // lul
+                table = new Table(newIndTable, newDepTables, [], this.originalCols) as unknown as Table<IndRow, DepTables>; // lul
              } else if (op.type === "depvar") {
                 const v = op.variable as keyof IndRow & keyof DepTables;
                 const indRows = new Map(table.independentTable.rows);
@@ -419,7 +420,7 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                 }
                 const depTables = { ...table.dependentTables };
                 delete depTables[v];
-                table = new Table(indTable, depTables, []);
+                table = new Table(indTable, depTables, [], this.originalCols);
             } else if (op.type === "longer") {
                 const cols = op.cols as (keyof IndRow)[];
                 const indRows = new Map();
@@ -434,9 +435,10 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
                 }
                 const depTables = { ...table.dependentTables };
                 delete depTables[op.targetTable];
-                table = new Table(indTable, depTables, []);
+                table = new Table(indTable, depTables, [], this.originalCols);
             }
         }
-        table.independentTable.print();
+        const finalTable = new IndependentTable(this.originalCols as (keyof IndRow)[], table.independentTable.rows);
+        finalTable.print();
     }
 }
