@@ -53,3 +53,14 @@ foobar.print();
 // const got100 = pivotTest.filter("test", (table) => table.getCol("score").includes(100))
 // got100.print();
 // const got100dep = got100.dependentTables.test;
+
+const t = Table.new(
+    ["year", "month", "tmp"],
+    [
+        { year: 2020, month: 1,   tmp: 2 } as const,
+        { year: 2020, month: 2,   tmp: 6 } as const,
+        { year: 2020, month: 3,   tmp: 10 } as const,
+        { year: 2020, month: 4,   tmp: 14 } as const,
+    ]
+);
+t.setDependentVar("tmp").print();

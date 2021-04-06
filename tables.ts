@@ -366,30 +366,19 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
             if (op.type === "wider") {
                 // table = table.pivotLonger();
             } else if (op.type === "depvar") {
-                const indTable = table.independentTable.rows;
-                for (const [id, row] of indTable) {
-                    const v = op.variable as keyof IndRow & keyof DepTables;
+                const v = op.variable as keyof IndRow & keyof DepTables;
+                const indRows = new Map(table.independentTable.rows);
+                const indTable = new IndependentTable([...table.independentTable.columns, v], indRows);
+                for (const [_, row] of indRows) {
                     row[v] = table.queryValue(v, row, v, {});
                 }
                 const depTables = { ...table.dependentTables };
-                delete depTables[op.variable];
-
-
-                const depTable = table.dependentTables[op.variable];
-                const indRows = [];
-                for (const [id, row] of depTable.rows) {
-                    const value = { [op.variable]: row[op.variable] };
-                    indRows.push(value);
-                }
-
-
-                const restDepTables = { ...table.dependentTables };
-                delete restDepTables[op.variable];
-
+                delete depTables[v];
+                table = new Table(indTable, depTables, []);
             } else if (op.type === "longer") {
 
             }
-            console.log(op);
         }
+        table.independentTable.print();
     }
 }
