@@ -19,7 +19,7 @@ const cleaned = foo
     .setDependentVar("avg")
     .pivotWider("element");
 cleaned.print();
-const foobarbaz = cleaned.filter("temperature", (table) => table.filter({ day: "t2" }).getCol("temp-max")[0] === 10);
+const foobarbaz = cleaned.filter("temperature", table => table.queryValue("temp-max", { day: "t2" }) === 10);
 foobarbaz.print();
 
 // const foo = Table.new(

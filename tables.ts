@@ -38,6 +38,15 @@ class IndependentTable<Cols> {
         return new IndependentTable(this.columns, rows);
     }
 
+    queryValue<C extends keyof Cols>(col: C, by: Partial<Omit<Cols, C>>): Cols[C] {
+        const table = this.filter(by as Partial<Cols>);
+        const first = table.get(0);
+        if (first === undefined) {
+            throw new Error("Not found");
+        }
+        return first.values[col];
+    }
+
     removeCols<Remove extends keyof Cols>(cols: Remove[]): IndependentTable<Omit<Cols, Remove>> {
         const newIndCols = this.columns.filter(col => {
             return !cols.find(exclude => exclude === col);
@@ -95,6 +104,15 @@ class BasicTable<IndCols, DepCols> {
             return true;
         });
         return new BasicTable(this.indCols, this.depCols, rows);
+    }
+
+    queryValue<C extends keyof DepCols>(col: C, by: Partial<IndCols>): DepCols[C] {
+        const table = this.filter(by);
+        const first = table.get(0);
+        if (first === undefined) {
+            throw new Error("Not found");
+        }
+        return first.values[col];
     }
 
     empty() {
@@ -215,14 +233,14 @@ export class Table<IndRow, DepTables extends { [_: string]: BasicTable<any, any>
         const depRows = [];
         for (const [id, row] of this.independentTable.rows) {
             for (const col of cols) {
-                const name = { [namesTo]: col as string } as Record<Name, string>;
+                const name = { [namesTo]: col } as Record<Name, Cols>;
                 const value = { [valuesTo]: row[col] } as Record<Value, IndRow[Cols]>;
                 depRows.push({ ind_id: id, ...name, ...value });
             }
         }
         const indCols: (Name | "ind_id")[] = ["ind_id", namesTo];
         const depCols: Value[] = [valuesTo];
-        const newDep = new BasicTable<Record<"ind_id", number> & Record<Name, string>, Record<Value, IndRow[Cols]>>(indCols, depCols, depRows);
+        const newDep = new BasicTable<Record<"ind_id", number> & Record<Name, Cols>, Record<Value, IndRow[Cols]>>(indCols, depCols, depRows);
 
         const newDeps = { [header]: newDep } as Record<Header, typeof newDep>;
         const op: Op<keyof DepTables | Exclude<Header, keyof DepTables>> = {
