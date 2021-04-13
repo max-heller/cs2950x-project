@@ -551,6 +551,25 @@ export class Table<IndRow, DepTables extends Record<string, BasicTable<any, any>
         const newOp = { type: "reduce", header: newHeader, variable: newCol } as Op<keyof DepTables | NewHeader>;
         return new Table(newInd, newDeps, [...this.ops, newOp], [...this.originalCols, newCol]);
     }
+
+    reducer<Acc, Out>(one: (table: Table<IndRow, DepTables>) => [Acc, Out], reduce: (values: Table<IndRow, DepTables>, acc: Acc) => [Acc, Out]) {
+        return { one: one, reduce: reduce }
+    }
+
+    columnReducer<Header extends keyof DepTables, Col extends keyof DepSchema<DepTables[Header]>, Acc, Out>(
+        header: Header, col: Col, one: (values: DepColType<DepTables[Header], Col>[]) => [Acc, Out], reduce: (values: DepColType<DepTables[Header], Col>[], acc: Acc) => [Acc, Out]
+    ) {
+        return {
+            one: (table: Table<IndRow, DepTables>): [Acc, Out] => {
+                const values = table.query(header, {}).getCol(col);
+                return one(values);
+            },
+            reduce: (table: Table<IndRow, DepTables>, acc: Acc): [Acc, Out] => {
+                const values = table.query(header, {}).getCol(col);
+                return reduce(values, acc);
+            },
+        }
+    }
 }
 
 interface Reducer<Table, Accumulator, Output> {
@@ -561,19 +580,27 @@ interface Reducer<Table, Accumulator, Output> {
 export const runningMeanReducer = <IndRow, DepTables extends Record<string, BasicTable<any, any>>, Header extends keyof DepTables, Col extends keyof DepSchema<DepTables[Header]>>(
     table: Table<IndRow, DepTables>, header: Header, col: Col
 ) => {
-    return {
-        reduce: (table: Table<IndRow, DepTables>, [count, sum]: [number, number]): [[number, number], number] => {
-            const values = table.query(header, {}).getCol(col);
-            const newCount = count + values.length;
-            const newSum = sum + values.reduce((acc, val) => acc + val, 0);
-            return [[newCount, newSum], newSum / newCount];
-        },
-        one: (table: Table<IndRow, DepTables>): [[number, number], number] => {
-            const foo = table.query(header, {});
-            const values = foo.getCol(col);
-            const count = values.length;
+    return table.columnReducer(header, col, (values => {
+        const count = values.length;
+        const sum = values.reduce((acc, val) => acc + val, 0);
+        return [[count, sum], sum / count];
+    }), (values, [count, sum]) => {
+        const newCount = count + values.length;
+        const newSum = sum + values.reduce((acc, val) => acc + val, 0);
+        return [[newCount, newSum], newSum / newCount];
+    })
+};
+
+export const runningSumReducer = <IndRow, DepTables extends Record<string, BasicTable<any, any>>, Header extends keyof DepTables, Col extends keyof DepSchema<DepTables[Header]>>(
+    table: Table<IndRow, DepTables>, header: Header, col: Col
+) => {
+    return table.columnReducer(header, col,
+        (values): [number, number] => {
             const sum = values.reduce((acc, val) => acc + val, 0);
-            return [[count, sum], sum / count];
-        }
-    }
+            return [sum, sum];
+        },
+        (values, sum: number): [number, number] => {
+            const newSum = sum + values.reduce((acc, val) => acc + val, 0);
+            return [newSum, newSum];
+        })
 };

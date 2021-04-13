@@ -1,4 +1,4 @@
-import { Table, runningMeanReducer } from "./tables"
+import { Table, runningMeanReducer, runningSumReducer } from "./tables"
 import { table } from "./examples/tests_and_labs"
 
 const foo = Table.new(
@@ -22,8 +22,8 @@ cleaned.print();
 const foobarbaz = cleaned.filterDep("temperature", table => table.queryValue("temp-max", { day: "t2" }) === 10);
 foobarbaz.print();
 
-const bazbarfoo = cleaned.reduce(runningMeanReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
-bazbarfoo.print();
+cleaned.reduce(cleaned.columnReducer("avg", "avg-min", values => [values[0], values[0]], (values, prev) => [values[0], values[0] - prev]), "avgdiffs", "diff").print();
+const bazbarfoo = cleaned.reduce(runningSumReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
 
 // const foo = Table.new(
 //     ["year", "month", "element", "d1", "t2"],
