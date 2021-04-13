@@ -122,6 +122,21 @@ class BasicTable<IndCols, DepCols> {
         return new BasicTable(this.indCols, this.depCols, rows);
     }
 
+    map<R extends {[K in keyof DepCols]: any}, F extends <K extends keyof DepCols>(value: DepCols[K]) => R[K]>(func: F)
+    : BasicTable<IndCols, R> {
+        const rows = this.rows.map(row => {
+            const newRow: Partial<IndCols & R> = {...row};
+
+            for (const depVar of this.depCols) {
+                newRow[depVar] = func(row[depVar]);
+            }
+
+            return newRow as IndCols & R;
+        })
+
+        return new BasicTable<IndCols, R>(this.indCols, this.depCols, rows);
+    }
+
     queryValue<C extends keyof DepCols>(col: C, by: Partial<IndCols>): DepCols[C] {
         const table = this.filter(by);
         const first = table.get(0);
@@ -265,14 +280,14 @@ export class Table<IndRow, DepTables extends Record<string, BasicTable<any, any>
         return new Table<IndRow, DepTables>(newIndTable, newDepTables, this.ops, this.originalCols);
     }
 
-    // map<L extends keyof DepTables, R extends {[K in ColsOf<DepTables[L]>]: any}>(
-    //     label: L, func: <K extends ColsOf<DepTables[L]>>(value: ColType<DepTables[L], K>) => R[K]
-    // ) {
-    //     const depTable = this.dependentTables[label];
-    //     const newData = depTable.rows.map((row) => utils.objMap(row, (key, value) => {
-
-    //     }));
-    // }
+    map<L extends keyof DepTables, R extends {[K in DepColsOf<DepTables[L]>]: any}, F extends <K extends DepColsOf<DepTables[L]>>(value: DepColType<DepSchema<DepTables[L]>, K>) => R[K]>(
+        label: L, func: F
+    ) {
+        const depTable = this.dependentTables[label];
+        const newDepTable = depTable.map(func);
+        const newDepTables: Omit<DepTables, L> & Record<L, BasicTable<IndSchema<DepTables[L]>, R>> = {...this.dependentTables, [label]: newDepTable};
+        return new Table(this.independentTable, newDepTables, this.ops as Op<L | Exclude<keyof DepTables, L>>[], this.originalCols);
+    }
 
     pivotLonger<Cols extends string & keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
         cols: Cols[], namesTo: NoUnion<Name>, valuesTo: NoUnion<Value>, header: NoUnion<Exclude<Header, keyof DepTables>>

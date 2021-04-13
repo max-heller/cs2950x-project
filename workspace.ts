@@ -25,6 +25,11 @@ foobarbaz.print();
 cleaned.reduce(cleaned.columnReducer("avg", "avg-min", values => [values[0], values[0]], (values, prev) => [values[0], values[0] - prev]), "avgdiffs", "diff").print();
 const bazbarfoo = cleaned.reduce(runningSumReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
 
+const bazbazbar = cleaned.map("avg", (val => val + 1));
+bazbazbar.print();
+const bazbarbaz = bazbazbar.queryValue("avg", {"year": 2020, "month": 2}, "avg-min", {});
+
+
 // const foo = Table.new(
 //     ["year", "month", "element", "d1", "t2"],
 //     [
