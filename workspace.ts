@@ -1,4 +1,4 @@
-import { Table } from "./tables"
+import { Table, runningMeanReducer } from "./tables"
 import { table } from "./examples/tests_and_labs"
 
 const foo = Table.new(
@@ -7,7 +7,7 @@ const foo = Table.new(
         { year: 2020, month: 1, element: "max", t1: 1, t2: 2, h1: "high", h2: "low", avg: 1.5 } as const,
         { year: 2020, month: 1, element: "min", t1: 3, t2: 4, h1: "high", h2: "med", avg: 3.5 } as const,
         { year: 2020, month: 2, element: "max", t1: 9, t2: 10, h1: "very high", h2: "very high", avg: 9.5 } as const,
-        { year: 2020, month: 2, element: "min", t1: 11, t2: 12, h1: "low", h2: "low", avg: 11.5} as const,
+        { year: 2020, month: 2, element: "min", t1: 11, t2: 12, h1: "low", h2: "low", avg: 11.5 } as const,
         { year: 2020, month: 3, element: "max", t1: 1, t2: 2, h1: "low", h2: "med", avg: 1.5 } as const,
         { year: 2020, month: 3, element: "min", t1: 3, t2: 4, h1: "med", h2: "med", avg: 3.5 } as const,
     ]
@@ -19,8 +19,11 @@ const cleaned = foo
     .setDependentVar("avg")
     .pivotWider("element");
 cleaned.print();
-const foobarbaz = cleaned.filter("temperature", table => table.queryValue("temp-max", { day: "t2" }) === 10);
+const foobarbaz = cleaned.filterDep("temperature", table => table.queryValue("temp-max", { day: "t2" }) === 10);
 foobarbaz.print();
+
+const bazbarfoo = cleaned.reduce(runningMeanReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
+bazbarfoo.print();
 
 // const foo = Table.new(
 //     ["year", "month", "element", "d1", "t2"],
