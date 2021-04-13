@@ -580,26 +580,28 @@ interface Reducer<Table, Accumulator, Output> {
 export const runningMeanReducer = <IndRow, DepTables extends Record<string, BasicTable<any, any>>, Header extends keyof DepTables, Col extends keyof DepSchema<DepTables[Header]>>(
     table: Table<IndRow, DepTables>, header: Header, col: Col
 ) => {
-    return table.columnReducer(header, col, (values => {
-        const count = values.length;
-        const sum = values.reduce((acc, val) => acc + val, 0);
-        return [[count, sum], sum / count];
-    }), (values, [count, sum]) => {
-        const newCount = count + values.length;
-        const newSum = sum + values.reduce((acc, val) => acc + val, 0);
-        return [[newCount, newSum], newSum / newCount];
-    })
+    return table.columnReducer(header, col,
+        (values => {
+            const count = values.length;
+            const sum = values.reduce((acc, val) => acc + val, 0);
+            return [[count, sum], sum / count];
+        }),
+        (values, [count, sum]) => {
+            const newCount = count + values.length;
+            const newSum = sum + values.reduce((acc, val) => acc + val, 0);
+            return [[newCount, newSum], newSum / newCount];
+        })
 };
 
 export const runningSumReducer = <IndRow, DepTables extends Record<string, BasicTable<any, any>>, Header extends keyof DepTables, Col extends keyof DepSchema<DepTables[Header]>>(
     table: Table<IndRow, DepTables>, header: Header, col: Col
 ) => {
     return table.columnReducer(header, col,
-        (values): [number, number] => {
+        (values) => {
             const sum = values.reduce((acc, val) => acc + val, 0);
             return [sum, sum];
         },
-        (values, sum: number): [number, number] => {
+        (values, sum) => {
             const newSum = sum + values.reduce((acc, val) => acc + val, 0);
             return [newSum, newSum];
         })
