@@ -18,16 +18,17 @@ const cleaned = foo
     .pivotLonger(["h1", "h2"], "day", "humidity", "humidity")
     .setDependentVar("avg")
     .pivotWider("element");
-cleaned.print();
+cleaned.buildCol((table) => table.queryValue("humidity", {}, "humidity-max", {}) + 1, "foobar").print();
+// cleaned.print();
 const foobarbaz = cleaned.filterDep("temperature", table => table.queryValue("temp-max", { day: "t2" }) === 10);
-foobarbaz.print();
+// foobarbaz.print();
 
 cleaned.reduce(cleaned.columnReducer("avg", "avg-min", values => [values[0], values[0]], (values, prev) => [values[0], values[0] - prev]), "avgdiffs", "diff").print();
 const bazbarfoo = cleaned.reduce(runningSumReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
 
 const bazbazbar = cleaned.map("avg", (val => val + 1));
-bazbazbar.print();
-const bazbarbaz = bazbazbar.queryValue("avg", {"year": 2020, "month": 2}, "avg-min", {});
+// bazbazbar.print();
+const bazbarbaz = bazbazbar.queryValue("avg", { "year": 2020, "month": 2 }, "avg-min", {});
 
 
 // const foo = Table.new(

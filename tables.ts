@@ -122,10 +122,10 @@ class BasicTable<IndCols, DepCols> {
         return new BasicTable(this.indCols, this.depCols, rows);
     }
 
-    map<R extends {[K in keyof DepCols]: any}, F extends <K extends keyof DepCols>(value: DepCols[K]) => R[K]>(func: F)
-    : BasicTable<IndCols, R> {
+    map<R extends { [K in keyof DepCols]: any }, F extends <K extends keyof DepCols>(value: DepCols[K]) => R[K]>(func: F)
+        : BasicTable<IndCols, R> {
         const rows = this.rows.map(row => {
-            const newRow: Partial<IndCols & R> = {...row};
+            const newRow: Partial<IndCols & R> = { ...row };
 
             for (const depVar of this.depCols) {
                 newRow[depVar] = func(row[depVar]);
@@ -280,13 +280,29 @@ export class Table<IndRow, DepTables extends Record<string, BasicTable<any, any>
         return new Table<IndRow, DepTables>(newIndTable, newDepTables, this.ops, this.originalCols);
     }
 
-    map<L extends keyof DepTables, R extends {[K in DepColsOf<DepTables[L]>]: any}, F extends <K extends DepColsOf<DepTables[L]>>(value: DepColType<DepSchema<DepTables[L]>, K>) => R[K]>(
+    map<L extends keyof DepTables, R extends { [K in DepColsOf<DepTables[L]>]: any }, F extends <K extends DepColsOf<DepTables[L]>>(value: DepColType<DepSchema<DepTables[L]>, K>) => R[K]>(
         label: L, func: F
     ) {
         const depTable = this.dependentTables[label];
         const newDepTable = depTable.map(func);
-        const newDepTables: Omit<DepTables, L> & Record<L, BasicTable<IndSchema<DepTables[L]>, R>> = {...this.dependentTables, [label]: newDepTable};
+        const newDepTables: Omit<DepTables, L> & Record<L, BasicTable<IndSchema<DepTables[L]>, R>> = { ...this.dependentTables, [label]: newDepTable };
         return new Table(this.independentTable, newDepTables, this.ops as Op<L | Exclude<keyof DepTables, L>>[], this.originalCols);
+    }
+
+    buildCol<Col extends string, Out, F extends (table: Table<IndRow, DepTables>) => Out>(
+        func: F, newCol: Col
+    ) {
+        const rows = [];
+        for (const [id, row] of this.independentTable.rows) {
+            const observation = this.getObservation(row);
+            const result: Out = func(observation);
+            rows.push({ ind_id: id, [newCol]: result } as { ind_id: number } & Record<Col, Out>);
+        }
+
+        const newDepTable = new BasicTable<{ ind_id: number }, Record<Col, Out>>([], [newCol], rows);
+        const newDepTables: DepTables & Record<Col, BasicTable<{ ind_id: number }, Record<Col, Out>>> = { ...this.dependentTables, [newCol]: newDepTable };
+        const newOps = [...this.ops, { type: "depvar", variable: newCol }] as Op<Col | keyof DepTables>[];
+        return new Table(this.independentTable, newDepTables, newOps, [...this.originalCols, newCol]);
     }
 
     pivotLonger<Cols extends string & keyof IndRow, Name extends string, Value extends Exclude<string, Name>, Header extends string>(
