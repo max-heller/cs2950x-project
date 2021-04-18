@@ -24,7 +24,8 @@ const foobarbaz = cleaned.filterDep("temperature", table => table.queryValue("te
 // foobarbaz.print();
 
 cleaned.reduce(cleaned.columnReducer("avg", "avg-min", values => [values[0], values[0]], (values, prev) => [values[0], values[0] - prev]), "avgdiffs", "diff").print();
-const bazbarfoo = cleaned.reduce(runningSumReducer(cleaned, "temperature", "temp-max"), "temp-avg", "t-avg");
+const bazbarfoo = cleaned.reduceToVal(runningSumReducer(cleaned, "temperature", "temp-max"));
+console.log(bazbarfoo);
 
 const bazbazbar = cleaned.map("avg", (val => val + 1));
 // bazbazbar.print();

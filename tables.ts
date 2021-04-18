@@ -583,6 +583,19 @@ export class Table<IndRow, DepTables extends Record<string, BasicTable<any, any>
         return new Table(newInd, newDeps, [...this.ops, newOp], [...this.originalCols, newCol]);
     }
 
+    reduceToVal<Accumulator, Output>(reducer: Reducer<Table<IndRow, DepTables>, Accumulator, Output>) {
+        let [acc, out]: [Accumulator | undefined, Output | undefined] = [undefined, undefined];
+        for (const [_, row] of this.independentTable.rows) {
+            const currTable = this.getObservation(row);
+            if (acc === undefined) {
+                [acc, out] = reducer.one(currTable);
+            } else {
+                [acc, out] = reducer.reduce(currTable, acc);
+            }
+        }
+        return out;
+    }
+
     reducer<Acc, Out>(one: (table: Table<IndRow, DepTables>) => [Acc, Out], reduce: (values: Table<IndRow, DepTables>, acc: Acc) => [Acc, Out]) {
         return { one: one, reduce: reduce }
     }
